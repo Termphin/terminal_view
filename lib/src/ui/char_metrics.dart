@@ -7,7 +7,12 @@ Size calcCharSize(TerminalStyle style, TextScaler textScaler) {
   const test = 'mmmmmmmmmm';
 
   final textStyle = style.toTextStyle();
-  final builder = ParagraphBuilder(textStyle.getParagraphStyle());
+  final builder = ParagraphBuilder(
+    textStyle.getParagraphStyle(
+      strutStyle: style.toStrutStyle(),
+      textScaler: textScaler,
+    ),
+  );
   builder.pushStyle(textStyle.getTextStyle(textScaler: textScaler));
   builder.addText(test);
 

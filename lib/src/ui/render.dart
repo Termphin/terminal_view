@@ -585,7 +585,12 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       backgroundColor: _painter.theme.background,
     );
 
-    final builder = ParagraphBuilder(style.getParagraphStyle());
+    final builder = ParagraphBuilder(
+      style.getParagraphStyle(
+        strutStyle: _painter.textStyle.toStrutStyle(),
+        textScaler: _painter.textScaler,
+      ),
+    );
     builder.addPlaceholder(
       offset.dx,
       _painter.cellSize.height,

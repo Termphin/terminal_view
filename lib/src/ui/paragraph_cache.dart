@@ -82,11 +82,17 @@ class ParagraphCache {
     Uint32List codePoints,
     int length,
     TextStyle style,
+    StrutStyle strutStyle,
     TextScaler textScaler,
     int key,
     int styleKey,
   ) {
-    final builder = ParagraphBuilder(style.getParagraphStyle());
+    final builder = ParagraphBuilder(
+      // The scaler has to reach the strut too: it pins the line height, so
+      // left unscaled it would hold the line at its unscaled size and clip
+      // text the user asked to be bigger.
+      style.getParagraphStyle(strutStyle: strutStyle, textScaler: textScaler),
+    );
     builder.pushStyle(style.getTextStyle(textScaler: textScaler));
     builder.addText(String.fromCharCodes(codePoints, 0, length));
 

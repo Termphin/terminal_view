@@ -1,3 +1,13 @@
+## [0.1.1] - 2026-08-01
+
+* Pin every cell's line box and baseline to the primary font with a strut, so
+  a glyph resolved from `fontFamilyFallback` sits on the same baseline as the
+  text beside it instead of riding high. Each cell is laid out as its own
+  paragraph, so without a strut it took its metrics from whichever font
+  happened to carry its glyph.
+* Split leading evenly rather than in proportion to each font's own ascent,
+  for the same reason.
+
 ## [0.1.0] - 2026-08-01
 
 First release under the name `terminal_view`, forked from `xterm` 4.0.0.

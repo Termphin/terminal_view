@@ -64,6 +64,27 @@ class TerminalStyle {
 
   final List<FontFeature> fontFeatures;
 
+  /// Forces every line to the primary font's metrics.
+  ///
+  /// A cell is laid out as its own paragraph, so without a strut each one
+  /// takes its baseline from whichever font ended up resolving its glyph. A
+  /// character the primary font has no glyph for — a symbol or an icon picked
+  /// up from [fontFamilyFallback] — then sits higher or lower than the
+  /// ordinary text beside it, because that fallback font has its own
+  /// ascent-to-descent ratio. The strut pins the line box and the baseline to
+  /// one font for all of them, which is the only way glyphs from different
+  /// files can share a row and still line up.
+  StrutStyle toStrutStyle() {
+    return StrutStyle(
+      fontSize: fontSize,
+      height: height,
+      fontFamily: fontFamily,
+      fontFamilyFallback: fontFamilyFallback,
+      forceStrutHeight: true,
+      leading: 0,
+    );
+  }
+
   /// Underlines are never rendered: [CellFlags.underline] is ignored and the
   /// style always resolves to [TextDecoration.none].
   TextStyle toTextStyle({
@@ -83,6 +104,10 @@ class TerminalStyle {
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
       fontStyle: italic ? FontStyle.italic : FontStyle.normal,
       decoration: TextDecoration.none,
+      // Splits the leading evenly above and below rather than in proportion
+      // to the font's own ascent, so a fallback glyph is not nudged off the
+      // shared baseline by metrics the primary font never had.
+      leadingDistribution: TextLeadingDistribution.even,
     );
   }
 

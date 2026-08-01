@@ -82,7 +82,12 @@ class TerminalPainter {
     const test = 'mmmmmmmmmm';
 
     final textStyle = _textStyle.toTextStyle();
-    final builder = ParagraphBuilder(textStyle.getParagraphStyle());
+    final builder = ParagraphBuilder(
+      textStyle.getParagraphStyle(
+        strutStyle: _textStyle.toStrutStyle(),
+        textScaler: _textScaler,
+      ),
+    );
     builder.pushStyle(
       textStyle.getTextStyle(textScaler: _textScaler),
     );
@@ -373,6 +378,7 @@ class TerminalPainter {
           bold: flags & CellFlags.bold != 0,
           italic: flags & CellFlags.italic != 0,
         ),
+        _textStyle.toStrutStyle(),
         _textScaler,
         key,
         styleKey,
