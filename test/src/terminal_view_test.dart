@@ -449,4 +449,26 @@ void main() {
       expect(terminalOutput.join(), isEmpty);
     });
   });
+
+  group('TerminalView.onTapUp', () {
+    testWidgets('reports the tapped cell', (tester) async {
+      final terminal = Terminal();
+      CellOffset? tapped;
+
+      await tester.pumpWidget(MaterialApp(
+        home: TerminalView(
+          terminal,
+          onTapUp: (_, offset) => tapped = offset,
+        ),
+      ));
+
+      await tester.tapAt(tester.getTopLeft(find.byType(TerminalView)) +
+          const Offset(1, 1));
+      await tester.pump(kDoubleTapTimeout);
+
+      expect(tapped, isNotNull);
+      expect(tapped!.x, 0);
+      expect(tapped!.y, 0);
+    });
+  });
 }

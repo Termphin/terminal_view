@@ -1,3 +1,11 @@
+## [0.1.2] - 2026-08-02
+
+* Fire `TerminalView.onTapUp`. The callback reached `TerminalGestureDetector`
+  and stopped there - only `onSingleTapUp` was wired to the tap recogniser -
+  so no tap ever reported its cell to the embedder. Like `onSingleTapUp`, it
+  skips the second tap of a double tap. Like `onSingleTapUp`, it
+  skips the second tap of a double tap.
+
 ## [0.1.1] - 2026-08-01
 
 * Pin every cell's line box and baseline to the primary font with a strut, so
