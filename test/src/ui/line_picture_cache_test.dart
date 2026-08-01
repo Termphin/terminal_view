@@ -17,8 +17,8 @@ void main() {
 
   /// Renders whatever [TerminalView] is currently on screen to raw pixels.
   Future<Uint8List> snapshot(WidgetTester tester) async {
-    final boundary =
-        boundaryKey.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final boundary = boundaryKey.currentContext!.findRenderObject()!
+        as RenderRepaintBoundary;
 
     final image = await tester.runAsync(() => boundary.toImage());
     final data = await tester.runAsync(

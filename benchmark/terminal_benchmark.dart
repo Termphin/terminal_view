@@ -62,7 +62,8 @@ _Result _runGetText() {
 
   final median = _median(samples);
   final mbPerSecond = length / 1024 / 1024 / (median / 1000);
-  return _Result('buffer getText', median, '${mbPerSecond.toStringAsFixed(1)} MB/s');
+  return _Result(
+      'buffer getText', median, '${mbPerSecond.toStringAsFixed(1)} MB/s');
 }
 
 List<double> _measure(void Function() body, {int warmup = 3, int runs = 10}) {

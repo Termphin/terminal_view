@@ -385,8 +385,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       var toPosition = getCellOffset(to);
       // Range end is exclusive: push whichever end comes last one cell forward
       // so the cell under the pointer stays selected in either drag direction.
-      final backwards =
-          toPosition.y < fromPosition.y ||
+      final backwards = toPosition.y < fromPosition.y ||
           (toPosition.y == fromPosition.y && toPosition.x < fromPosition.x);
       final basePosition = backwards
           ? CellOffset(fromPosition.x + 1, fromPosition.y)

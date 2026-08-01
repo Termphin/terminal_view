@@ -80,3 +80,8 @@ example/lib/debug.dart
 coverage/
 
 example2/
+# Golden test diff artifacts
+test/failures/
+
+# Library package: the lockfile is not committed
+pubspec.lock

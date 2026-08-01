@@ -242,30 +242,23 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   }
 
   @override
-  void updateFloatingCursor(RawFloatingCursorPoint point) {
-  }
+  void updateFloatingCursor(RawFloatingCursorPoint point) {}
 
   @override
-  void showAutocorrectionPromptRect(int start, int end) {
-  }
+  void showAutocorrectionPromptRect(int start, int end) {}
 
   @override
-  void connectionClosed() {
-  }
+  void connectionClosed() {}
 
   @override
-  void performPrivateCommand(String action, Map<String, dynamic> data) {
-  }
+  void performPrivateCommand(String action, Map<String, dynamic> data) {}
 
   @override
-  void insertTextPlaceholder(Size size) {
-  }
+  void insertTextPlaceholder(Size size) {}
 
   @override
-  void removeTextPlaceholder() {
-  }
+  void removeTextPlaceholder() {}
 
   @override
-  void showToolbar() {
-  }
+  void showToolbar() {}
 }

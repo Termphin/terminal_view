@@ -46,7 +46,7 @@ void main() {
         CellOffset(10, 10),
       );
 
-      expect(output, ['\x1B[M +,']);
+      expect(output, ['\x1B[M ++']);
     });
   });
 
