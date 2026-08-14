@@ -83,14 +83,19 @@ class IndexAwareCircularBuffer<T extends IndexedItem> {
 
     if (value == _array.length) return;
 
-    // Reconstruct array, starting at index 0. Only transfer values from the
-    // indexes 0 to length.
+    // Clamp _length so it never exceeds _array.length after shrinking.
+    final newLength = _length < value ? _length : value;
+    for (var i = newLength; i < _length; i++) {
+      _getChild(i)?._detach();
+    }
+
     final newArray = List<T?>.generate(
       value,
-      (index) => index < _length ? _getChild(index) : null,
+      (index) => index < newLength ? _getChild(index) : null,
     );
 
     _startIndex = 0;
+    _length = newLength;
     _array = newArray;
     _version++;
   }

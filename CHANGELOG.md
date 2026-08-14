@@ -1,3 +1,10 @@
+## [0.1.3] - 2026-08-14
+
+* Fix null-check crash in `IndexAwareCircularBuffer.[]`. Shrinking
+  `maxLength` left `_length` bigger than the new backing array, so `push`
+  never detected a full buffer and `_length` grew unbounded until reads
+  landed on a dropped slot.
+
 ## [0.1.2] - 2026-08-02
 
 * Fire `TerminalView.onTapUp`. The callback reached `TerminalGestureDetector`
