@@ -40,6 +40,9 @@ class TerminalPainter {
   /// not allocate; grown on demand for terminals wider than its initial size.
   var _runBuffer = Uint32List(256);
 
+  /// Whether blinking text should currently be drawn or hidden this frame.
+  bool blinkVisible = true;
+
   /// Reused across every rect painted in a frame - [Canvas] reads the paint at
   /// call time.
   final _fillPaint = Paint();
@@ -176,6 +179,11 @@ class TerminalPainter {
     Offset offset,
     BufferLine line,
   ) {
+    if (_lineHasBlink(line)) {
+      _paintLineDirect(canvas, offset, line);
+      return;
+    }
+
     final version = line.version;
     final entry = _lineCache.get(line);
 
@@ -201,6 +209,14 @@ class TerminalPainter {
 
     _lineCache.put(line, version);
     _paintLineDirect(canvas, offset, line);
+  }
+
+  bool _lineHasBlink(BufferLine line) {
+    final length = line.length;
+    for (var i = 0; i < length; i++) {
+      if (line.getAttributes(i) & CellFlags.blink != 0) return true;
+    }
+    return false;
   }
 
   /// Paints [line] straight onto [canvas], bypassing the picture cache.
@@ -240,7 +256,10 @@ class TerminalPainter {
         final background = line.getBackground(i);
 
         if (flags & CellFlags.inverse != 0) {
-          color = resolveForegroundColor(line.getForeground(i));
+          color = resolveForegroundColor(
+            line.getForeground(i),
+            bold: flags & CellFlags.bold != 0,
+          );
         } else if (background & CellColor.typeMask != CellColor.normal) {
           color = resolveBackgroundColor(background);
         }
@@ -331,13 +350,24 @@ class TerminalPainter {
 
       cellData ??= CellData.empty();
       line.getCellData(i, cellData);
-      paintCellForeground(canvas, offset.translate(i * cellWidth, 0), cellData);
+      paintCellForeground(
+        canvas,
+        offset.translate(i * cellWidth, 0),
+        cellData,
+        fitWidth: cellWidth * (charWidth == 2 ? 2 : 1),
+        combined: line.getCombined(i),
+      );
       i += step;
     }
   }
 
   /// Draws the first [length] code points of [codePoints] as one paragraph,
   /// starting at [offset].
+  ///
+  /// [fitWidth] scales the glyph horizontally onto the cells it owns. A cell is
+  /// a fraction of a pixel wide and a fallback font advances by whatever it
+  /// likes, so box drawing left at its natural width leaves seams between the
+  /// segments of a border, and a wide symbol runs over its neighbour.
   void _paintRun(
     Canvas canvas,
     Offset offset,
@@ -346,8 +376,20 @@ class TerminalPainter {
     required int foreground,
     required int background,
     required int flags,
+    double? fitWidth,
+    Color? overrideColor,
   }) {
-    final styleKey = hashValues(foreground, background, flags, _textScaler);
+    if (overrideColor == null) {
+      final invisible = flags & CellFlags.invisible != 0;
+      final blinkHidden = flags & CellFlags.blink != 0 && !blinkVisible;
+      if (invisible || blinkHidden) return;
+    }
+
+    final bold = flags & CellFlags.bold != 0;
+    final decoration = _decorationFor(flags);
+    final colorBits = overrideColor?.toARGB32() ?? 0;
+    final styleKey =
+        hashValues(foreground, background, flags, _textScaler, colorBits);
 
     var key = styleKey;
     for (var i = 0; i < length; i++) {
@@ -362,21 +404,22 @@ class TerminalPainter {
     );
 
     if (paragraph == null) {
-      var color = flags & CellFlags.inverse == 0
-          ? resolveForegroundColor(foreground)
-          : resolveBackgroundColor(background);
-
-      if (flags & CellFlags.faint != 0) {
-        color = color.withValues(alpha: 0.5);
-      }
+      final color = _resolveRunColor(
+        overrideColor: overrideColor,
+        foreground: foreground,
+        background: background,
+        flags: flags,
+        bold: bold,
+      );
 
       paragraph = _paragraphCache.performAndCacheLayout(
         codePoints,
         length,
         _textStyle.toTextStyle(
           color: color,
-          bold: flags & CellFlags.bold != 0,
+          bold: bold,
           italic: flags & CellFlags.italic != 0,
+          decoration: decoration,
         ),
         _textStyle.toStrutStyle(),
         _textScaler,
@@ -385,7 +428,130 @@ class TerminalPainter {
       );
     }
 
+    if (fitWidth != null) {
+      final naturalWidth = paragraph.maxIntrinsicWidth;
+      final delta = fitWidth - naturalWidth;
+      if (naturalWidth > 0 && delta.abs() > 0.05) {
+        final spacing = delta / length;
+        final spacingKey = 0x1fffffff & (key * 31 + (spacing * 100).round());
+
+        var spacedParagraph = _paragraphCache.getLayoutFromCache(
+          spacingKey,
+          styleKey,
+          codePoints,
+          length,
+        );
+
+        if (spacedParagraph == null) {
+          final color = _resolveRunColor(
+            overrideColor: overrideColor,
+            foreground: foreground,
+            background: background,
+            flags: flags,
+            bold: bold,
+          );
+
+          spacedParagraph = _paragraphCache.performAndCacheLayout(
+            codePoints,
+            length,
+            _textStyle.toTextStyle(
+              color: color,
+              bold: bold,
+              italic: flags & CellFlags.italic != 0,
+              decoration: decoration,
+              letterSpacing: spacing,
+            ),
+            _textStyle.toStrutStyle(),
+            _textScaler,
+            spacingKey,
+            styleKey,
+          );
+        }
+
+        canvas.drawParagraph(spacedParagraph, offset);
+        return;
+      }
+    }
+
     canvas.drawParagraph(paragraph, offset);
+  }
+
+  Color _resolveRunColor({
+    required Color? overrideColor,
+    required int foreground,
+    required int background,
+    required int flags,
+    required bool bold,
+  }) {
+    if (overrideColor != null) return overrideColor;
+
+    final inverse = flags & CellFlags.inverse != 0;
+    var color = inverse
+        ? resolveBackgroundColor(background)
+        : resolveForegroundColor(foreground, bold: bold);
+
+    if (flags & CellFlags.faint != 0) {
+      color = color.withValues(alpha: 0.5);
+    }
+
+    if (_theme.minimumContrastRatio > 1.0) {
+      final bgColor = inverse
+          ? resolveForegroundColor(foreground, bold: bold)
+          : resolveBackgroundColor(background);
+      color = _ensureContrast(color, bgColor, _theme.minimumContrastRatio);
+    }
+
+    return color;
+  }
+
+  TextDecoration _decorationFor(int flags) {
+    final underline = flags & CellFlags.underline != 0;
+    final strikethrough = flags & CellFlags.strikethrough != 0;
+
+    if (underline && strikethrough) {
+      return TextDecoration.combine(
+        [TextDecoration.underline, TextDecoration.lineThrough],
+      );
+    } else if (underline) {
+      return TextDecoration.underline;
+    } else if (strikethrough) {
+      return TextDecoration.lineThrough;
+    }
+
+    return TextDecoration.none;
+  }
+
+  double _contrastRatio(Color a, Color b) {
+    final la = a.computeLuminance();
+    final lb = b.computeLuminance();
+    final lighter = la > lb ? la : lb;
+    final darker = la > lb ? lb : la;
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  Color _ensureContrast(Color fg, Color bg, double minRatio) {
+    if (_contrastRatio(fg, bg) >= minRatio) return fg;
+
+    final towardsWhite = bg.computeLuminance() < 0.5;
+    final extreme =
+        towardsWhite ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+
+    if (_contrastRatio(extreme, bg) < minRatio) return extreme;
+
+    var lo = 0.0;
+    var hi = 1.0;
+    var best = extreme;
+    for (var i = 0; i < 8; i++) {
+      final mid = (lo + hi) / 2;
+      final candidate = Color.lerp(fg, extreme, mid)!;
+      if (_contrastRatio(candidate, bg) >= minRatio) {
+        best = candidate;
+        hi = mid;
+      } else {
+        lo = mid;
+      }
+    }
+    return best;
   }
 
   @pragma('vm:prefer-inline')
@@ -394,13 +560,60 @@ class TerminalPainter {
     paintCellForeground(canvas, offset, cellData);
   }
 
-  /// Paints the character in the cell represented by [cellData] to [canvas] at
-  /// [offset].
-  void paintCellForeground(Canvas canvas, Offset offset, CellData cellData) {
+  void paintCellForeground(
+    Canvas canvas,
+    Offset offset,
+    CellData cellData, {
+    double? fitWidth,
+    String? combined,
+  }) {
+    final charCode = cellData.content & CellContent.codepointMask;
+    if (charCode == 0) return;
+
+    Uint32List codePoints;
+    int length;
+
+    if (combined != null && combined.isNotEmpty) {
+      final runes = combined.runes.toList(growable: false);
+      final needed = 1 + runes.length;
+      if (needed > _graphemeBuffer.length) {
+        _graphemeBuffer = Uint32List(needed);
+      }
+      _graphemeBuffer[0] = charCode;
+      for (var i = 0; i < runes.length; i++) {
+        _graphemeBuffer[i + 1] = runes[i];
+      }
+      codePoints = _graphemeBuffer;
+      length = needed;
+    } else {
+      _singleCellBuffer[0] = charCode;
+      codePoints = _singleCellBuffer;
+      length = 1;
+    }
+
+    _paintRun(
+      canvas,
+      offset,
+      codePoints,
+      length,
+      foreground: cellData.foreground,
+      background: cellData.background,
+      flags: cellData.flags,
+      fitWidth: fitWidth,
+    );
+  }
+
+  void paintCellForegroundColor(
+    Canvas canvas,
+    Offset offset,
+    CellData cellData,
+    Color color,
+  ) {
     final charCode = cellData.content & CellContent.codepointMask;
     if (charCode == 0) return;
 
     _singleCellBuffer[0] = charCode;
+    final doubleWidth = cellData.content >> CellContent.widthShift == 2;
 
     _paintRun(
       canvas,
@@ -410,12 +623,16 @@ class TerminalPainter {
       foreground: cellData.foreground,
       background: cellData.background,
       flags: cellData.flags,
+      fitWidth: _cellSize.width * (doubleWidth ? 2 : 1),
+      overrideColor: color,
     );
   }
 
   /// Kept apart from [_runBuffer] so painting one cell cannot disturb a run
   /// being assembled.
   final _singleCellBuffer = Uint32List(1);
+
+  var _graphemeBuffer = Uint32List(16);
 
   /// Paints the background of a cell represented by [cellData] to [canvas] at
   /// [offset].
@@ -425,7 +642,10 @@ class TerminalPainter {
     final colorType = cellData.background & CellColor.typeMask;
 
     if (cellData.flags & CellFlags.inverse != 0) {
-      color = resolveForegroundColor(cellData.foreground);
+      color = resolveForegroundColor(
+        cellData.foreground,
+        bold: cellData.flags & CellFlags.bold != 0,
+      );
     } else if (colorType == CellColor.normal) {
       return;
     } else {
@@ -448,9 +668,16 @@ class TerminalPainter {
   /// Get the effective foreground color for a cell from information encoded in
   /// [cellColor].
   @pragma('vm:prefer-inline')
-  Color resolveForegroundColor(int cellColor) {
+  Color resolveForegroundColor(int cellColor, {bool bold = false}) {
     final colorType = cellColor & CellColor.typeMask;
-    final colorValue = cellColor & CellColor.valueMask;
+    var colorValue = cellColor & CellColor.valueMask;
+
+    if (bold &&
+        _theme.drawBoldTextInBrightColors &&
+        colorType == CellColor.named &&
+        colorValue < 8) {
+      colorValue += 8;
+    }
 
     switch (colorType) {
       case CellColor.normal:

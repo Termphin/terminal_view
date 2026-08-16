@@ -4,6 +4,7 @@ import 'dart:ui';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:terminal_view/src/core/cell.dart';
 import 'package:terminal_view/src/core/buffer/cell_offset.dart';
 import 'package:terminal_view/src/core/buffer/range.dart';
 import 'package:terminal_view/src/core/buffer/range_line.dart';
@@ -12,7 +13,7 @@ import 'package:terminal_view/src/core/mouse/button.dart';
 import 'package:terminal_view/src/core/mouse/button_state.dart';
 import 'package:terminal_view/src/terminal.dart';
 import 'package:terminal_view/src/ui/controller.dart';
-import 'package:terminal_view/src/ui/cursor_type.dart';
+import 'package:terminal_view/src/core/cursor_type.dart';
 import 'package:terminal_view/src/ui/painter.dart';
 import 'package:terminal_view/src/ui/selection_mode.dart';
 import 'package:terminal_view/src/ui/terminal_size.dart';
@@ -451,6 +452,15 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   }
 
   /// Notify the underlying terminal that the viewport size has changed.
+  ///
+  /// This runs synchronously inside [performLayout], not through
+  /// [_onTerminalChange] the way remote output does - `Buffer.resize` can
+  /// change `lines.length` right here without [_lastLineCount] ever
+  /// learning about it. Left stale, the next real output event reads a
+  /// [_lastLineCount] from before the resize, so its own line-count check
+  /// can come out wrong and skip the layout pass that would have
+  /// recomputed the scroll bounds for the size that was just applied -
+  /// exactly the moment that matters most. Syncing it here closes that gap.
   void _resizeTerminalIfNeeded() {
     if (_autoResize && _viewportSize != null) {
       _terminal.resize(
@@ -459,6 +469,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         _painter.cellSize.width.round(),
         _painter.cellSize.height.round(),
       );
+      _lastLineCount = _terminal.buffer.lines.length;
     }
   }
 
@@ -490,11 +501,15 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     return -_scrollOffset + _padding.top;
   }
 
+  double _rowY(int row) {
+    return (row * _painter.cellSize.height + _lineOffset).truncateToDouble();
+  }
+
   /// The offset of the cursor from the top left corner of this render object.
   Offset get cursorOffset {
     return Offset(
       _terminal.buffer.cursorX * _painter.cellSize.width,
-      _terminal.buffer.absoluteCursorY * _painter.cellSize.height + _lineOffset,
+      _rowY(_terminal.buffer.absoluteCursorY),
     );
   }
 
@@ -531,10 +546,12 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     final effectFirstLine = firstLine.clamp(0, lines.length - 1);
     final effectLastLine = lastLine.clamp(0, lines.length - 1);
 
+    _painter.blinkVisible = _blinkVisible;
+
     for (var i = effectFirstLine; i <= effectLastLine; i++) {
       _painter.paintLine(
         canvas,
-        offset.translate(0, (i * charHeight + _lineOffset).truncateToDouble()),
+        offset.translate(0, _rowY(i)),
         lines[i],
       );
     }
@@ -552,6 +569,10 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
           cursorType: _cursorType,
           hasFocus: _focusNode.hasFocus,
         );
+
+        if (_focusNode.hasFocus) {
+          _paintCursorAccent(canvas, offset);
+        }
       }
     }
 
@@ -626,7 +647,12 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         break;
       }
 
-      _paintSegment(canvas, segment, _painter.theme.selection);
+      _paintSegment(
+        canvas,
+        segment,
+        _painter.theme.selection,
+        textColor: _painter.theme.selectionForeground,
+      );
     }
   }
 
@@ -659,16 +685,54 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     }
   }
 
-  @pragma('vm:prefer-inline')
-  void _paintSegment(Canvas canvas, BufferSegment segment, Color color) {
+  void _paintSegment(
+    Canvas canvas,
+    BufferSegment segment,
+    Color color, {
+    Color? textColor,
+  }) {
     final start = segment.start ?? 0;
     final end = segment.end ?? _terminal.viewWidth;
 
     final startOffset = Offset(
       start * _painter.cellSize.width,
-      segment.line * _painter.cellSize.height + _lineOffset,
+      _rowY(segment.line),
     );
 
     _painter.paintHighlight(canvas, startOffset, end - start, color);
+
+    if (textColor == null) return;
+
+    final line = _terminal.buffer.lines[segment.line];
+    final cellWidth = _painter.cellSize.width;
+    final clampedEnd = end.clamp(0, line.length);
+    final cellData = CellData.empty();
+
+    for (var i = start; i < clampedEnd; i++) {
+      line.getCellData(i, cellData);
+      _painter.paintCellForegroundColor(
+        canvas,
+        startOffset.translate((i - start) * cellWidth, 0),
+        cellData,
+        textColor,
+      );
+    }
+  }
+
+  void _paintCursorAccent(Canvas canvas, Offset offset) {
+    final accent = _painter.theme.cursorAccent;
+    if (accent == null || _cursorType != TerminalCursorType.block) return;
+
+    final buffer = _terminal.buffer;
+    final line = buffer.lines[buffer.absoluteCursorY];
+    final cellData = CellData.empty();
+    line.getCellData(buffer.cursorX, cellData);
+
+    _painter.paintCellForegroundColor(
+      canvas,
+      offset + cursorOffset,
+      cellData,
+      accent,
+    );
   }
 }

@@ -100,8 +100,11 @@ class EscapeParser {
     'E'.charCode: _escHandleNextLine,
     'H'.charCode: _escHandleTabSet,
     'M'.charCode: _escHandleReverseIndex,
-    // 'P'.charCode: _unsupportedHandler, // Sixel
-    // 'c'.charCode: _unsupportedHandler,
+    'P'.charCode: _escHandleStringSequence,
+    'X'.charCode: _escHandleStringSequence,
+    '^'.charCode: _escHandleStringSequence,
+    '_'.charCode: _escHandleStringSequence,
+    'c'.charCode: _escHandleFullReset,
     // '#'.charCode: _unsupportedHandler,
     '('.charCode: _escHandleDesignateCharset0, //  SCS - G0
     ')'.charCode: _escHandleDesignateCharset1, //  SCS - G1
@@ -157,6 +160,32 @@ class EscapeParser {
   bool _escHandleReverseIndex() {
     handler.reverseIndex();
     return true;
+  }
+
+  /// `ESC c` Full Reset (RIS)
+  bool _escHandleFullReset() {
+    handler.fullReset();
+    return true;
+  }
+
+  /// Consumes the body of a DCS, SOS, PM or APC sequence up to its string
+  /// terminator. Without this the body is written to the screen as text.
+  bool _escHandleStringSequence() {
+    while (true) {
+      if (_queue.isEmpty) return false;
+
+      final char = _queue.consume();
+
+      if (char == Ascii.BEL || char == Ascii.CAN || char == Ascii.SUB) {
+        return true;
+      }
+
+      if (char == Ascii.ESC) {
+        if (_queue.isEmpty) return false;
+        _queue.consume();
+        return true;
+      }
+    }
   }
 
   bool _escHandleDesignateCharset0() {
@@ -217,6 +246,7 @@ class EscapeParser {
 
     _csi.params.clear();
     _csi.subParams.clear();
+    _csi.intermediate = null;
 
     // test whether the csi is a `CSI ? Ps ...` or `CSI Ps ...`
     final prefix = _queue.peek();
@@ -261,6 +291,9 @@ class EscapeParser {
       }
 
       if (char > Ascii.NULL && char < Ascii.num0) {
+        if (char >= Ascii.space) {
+          _csi.intermediate = char;
+        }
         continue;
       }
 
@@ -280,18 +313,22 @@ class EscapeParser {
   }
 
   late final _csiHandlers = FastLookupTable<_CsiHandler>({
-    // 'a'.codeUnitAt(0): _csiHandleCursorHorizontalRelative,
+    'a'.codeUnitAt(0): _csiHandleCursorHorizontalRelative,
     'b'.codeUnitAt(0): _csiHandleRepeatPreviousCharacter,
     'c'.codeUnitAt(0): _csiHandleSendDeviceAttributes,
     'd'.codeUnitAt(0): _csiHandleLinePositionAbsolute,
+    'e'.codeUnitAt(0): _csiHandleLinePositionRelative,
     'f'.codeUnitAt(0): _csiHandleCursorPosition,
     'g'.codeUnitAt(0): _csiHandelClearTabStop,
     'h'.codeUnitAt(0): _csiHandleMode,
     'l'.codeUnitAt(0): _csiHandleMode,
     'm'.codeUnitAt(0): _csiHandleSgr,
     'n'.codeUnitAt(0): _csiHandleDeviceStatusReport,
+    'p'.codeUnitAt(0): _csiHandleSoftResetOrRequestMode,
+    'q'.codeUnitAt(0): _csiHandleSetCursorStyle,
     'r'.codeUnitAt(0): _csiHandleSetMargins,
     't'.codeUnitAt(0): _csiWindowManipulation,
+    '`'.codeUnitAt(0): _csiHandleCursorHorizontalAbsolute,
     'A'.codeUnitAt(0): _csiHandleCursorUp,
     'B'.codeUnitAt(0): _csiHandleCursorDown,
     'C'.codeUnitAt(0): _csiHandleCursorForward,
@@ -308,6 +345,8 @@ class EscapeParser {
     'S'.codeUnitAt(0): _csiHandleScrollUp,
     'T'.codeUnitAt(0): _csiHandleScrollDown,
     'X'.codeUnitAt(0): _csiHandleEraseCharacters,
+    'I'.codeUnitAt(0): _csiHandleCursorForwardTab,
+    'Z'.codeUnitAt(0): _csiHandleCursorBackwardTab,
     '@'.codeUnitAt(0): _csiHandleInsertBlankCharacters,
     // ANSI SCO save/restore cursor (ESC[s / ESC[u).
     // React Ink (used by Claude CLI and many Node.js TUI apps) relies on
@@ -467,6 +506,7 @@ class EscapeParser {
           handler.unsetCursorBold();
           continue;
         case 22:
+          handler.unsetCursorBold();
           handler.unsetCursorFaint();
           continue;
         case 23:
@@ -653,6 +693,8 @@ class EscapeParser {
   ///
   /// https://terminalguide.namepad.de/seq/csi_sr/
   void _csiHandleSetMargins() {
+    if (_csi.prefix != null || _csi.intermediate != null) return;
+
     var top = 1;
     int? bottom;
 
@@ -959,12 +1001,89 @@ class EscapeParser {
 
   /// `ESC [ s` Save Cursor Position (ANSI SCO / SCOSC)
   void _csiHandleSaveCursor() {
+    if (_csi.prefix != null || _csi.intermediate != null) return;
     handler.saveCursor();
   }
 
   /// `ESC [ u` Restore Cursor Position (ANSI SCO / SCORC)
   void _csiHandleRestoreCursor() {
+    if (_csi.prefix != null || _csi.intermediate != null) return;
     handler.restoreCursor();
+  }
+
+  /// `ESC [ Ps a` Cursor Horizontal Relative (HPR)
+  void _csiHandleCursorHorizontalRelative() {
+    var amount = 1;
+
+    if (_csi.params.isNotEmpty) {
+      amount = _csi.params[0];
+      if (amount == 0) amount = 1;
+    }
+
+    handler.moveCursorX(amount);
+  }
+
+  /// `ESC [ Ps e` Line Position Relative (VPR)
+  void _csiHandleLinePositionRelative() {
+    var amount = 1;
+
+    if (_csi.params.isNotEmpty) {
+      amount = _csi.params[0];
+      if (amount == 0) amount = 1;
+    }
+
+    handler.moveCursorY(amount);
+  }
+
+  /// `ESC [ Ps I` Cursor Horizontal Forward Tabulation (CHT)
+  void _csiHandleCursorForwardTab() {
+    var amount = 1;
+
+    if (_csi.params.isNotEmpty) {
+      amount = _csi.params[0];
+      if (amount == 0) amount = 1;
+    }
+
+    for (var i = 0; i < amount; i++) {
+      handler.tab();
+    }
+  }
+
+  /// `ESC [ Ps Z` Cursor Backward Tabulation (CBT)
+  void _csiHandleCursorBackwardTab() {
+    var amount = 1;
+
+    if (_csi.params.isNotEmpty) {
+      amount = _csi.params[0];
+      if (amount == 0) amount = 1;
+    }
+
+    handler.backwardTab(amount);
+  }
+
+  /// - `ESC [ ! p` Soft Terminal Reset (DECSTR)
+  /// - `ESC [ Ps $ p` Request Mode (DECRQM)
+  /// - `ESC [ ? Ps $ p` Request DEC Private Mode (DECRQM)
+  void _csiHandleSoftResetOrRequestMode() {
+    if (_csi.intermediate == Ascii.exclamationMark) {
+      return handler.softReset();
+    }
+
+    if (_csi.intermediate == Ascii.dollarSign) {
+      if (_csi.params.isEmpty) return;
+      return handler.reportMode(
+        _csi.params[0],
+        isDec: _csi.prefix == Ascii.questionMark,
+      );
+    }
+  }
+
+  /// `ESC [ Ps SP q` Set Cursor Style (DECSCUSR)
+  void _csiHandleSetCursorStyle() {
+    if (_csi.intermediate != Ascii.space) return;
+
+    final shape = _csi.params.isNotEmpty ? _csi.params[0] : 0;
+    handler.setCursorStyleShape(shape);
   }
 
   void _setMode(int mode, bool enabled) {
@@ -1066,6 +1185,8 @@ class EscapeParser {
         return;
       case 2004:
         return handler.setBracketedPasteMode(enabled);
+      case 2026:
+        return handler.setSynchronizedUpdateMode(enabled);
       default:
         return handler.setUnknownDecMode(mode, enabled);
     }
@@ -1135,8 +1256,12 @@ class EscapeParser {
 
         if (_queue.consume() == Ascii.backslash) {
           _osc.add(param.toString());
+          return true;
         }
 
+        // Anything but a backslash aborts the OSC and starts a sequence of its
+        // own, so both bytes go back for the parser to read as one.
+        _queue.rollback(2);
         return true;
       }
 
@@ -1160,6 +1285,8 @@ class _Csi {
   });
 
   int? prefix;
+
+  int? intermediate;
 
   List<int> params;
 

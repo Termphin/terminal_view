@@ -5,7 +5,7 @@ import 'package:terminal_view/src/core/buffer/cell_offset.dart';
 import 'package:terminal_view/src/core/cell.dart';
 import 'package:terminal_view/src/core/cursor.dart';
 import 'package:terminal_view/src/utils/circular_buffer.dart';
-import 'package:terminal_view/src/utils/unicode_v11.dart';
+import 'package:terminal_view/src/utils/unicode_v16.dart';
 
 const _cellSize = 4;
 
@@ -34,6 +34,15 @@ class BufferLine with IndexedItem {
   Uint32List _data;
 
   Uint32List get data => _data;
+
+  Map<int, String>? _combined;
+
+  String? getCombined(int index) => _combined?[index];
+
+  void setCombined(int index, String suffix) {
+    _version++;
+    (_combined ??= {})[index] = suffix;
+  }
 
   var isWrapped = false;
 
@@ -106,7 +115,7 @@ class BufferLine with IndexedItem {
   }
 
   void setCodePoint(int index, int char) {
-    final width = unicodeV11.wcwidth(char);
+    final width = unicodeV16.wcwidth(char);
     setContent(index, char | (width << CellContent.widthShift));
   }
 
@@ -117,6 +126,7 @@ class BufferLine with IndexedItem {
     _data[offset + _cellBackground] = style.background;
     _data[offset + _cellAttributes] = style.attrs;
     _data[offset + _cellContent] = char | (witdh << CellContent.widthShift);
+    _combined?.remove(index);
   }
 
   void setCellData(int index, CellData cellData) {
@@ -126,6 +136,7 @@ class BufferLine with IndexedItem {
     _data[offset + _cellBackground] = cellData.background;
     _data[offset + _cellAttributes] = cellData.flags;
     _data[offset + _cellContent] = cellData.content;
+    _combined?.remove(index);
   }
 
   void eraseCell(int index, CursorStyle style) {
@@ -135,6 +146,7 @@ class BufferLine with IndexedItem {
     _data[offset + _cellBackground] = style.background;
     _data[offset + _cellAttributes] = style.attrs;
     _data[offset + _cellContent] = 0;
+    _combined?.remove(index);
   }
 
   void resetCell(int index) {
@@ -144,6 +156,7 @@ class BufferLine with IndexedItem {
     _data[offset + _cellBackground] = 0;
     _data[offset + _cellAttributes] = 0;
     _data[offset + _cellContent] = 0;
+    _combined?.remove(index);
   }
 
   /// Erase cells whose index satisfies [start] <= index < [end]. Erased cells
@@ -173,6 +186,8 @@ class BufferLine with IndexedItem {
     assert(count >= 0 && start + count <= _length);
 
     style ??= CursorStyle.empty;
+
+    _combined?.clear();
 
     if (start + count < _length) {
       final moveStart = start * _cellSize;
@@ -208,6 +223,8 @@ class BufferLine with IndexedItem {
   void insertCells(int start, int count, [CursorStyle? style]) {
     _version++;
     style ??= CursorStyle.empty;
+
+    _combined?.clear();
 
     if (start > 0 && getWidth(start - 1) == 2) {
       eraseCell(start - 1, style);
@@ -309,6 +326,16 @@ class BufferLine with IndexedItem {
     for (var i = 0; i < len * _cellSize; i++) {
       _data[dstOffset++] = src._data[srcOffset++];
     }
+
+    final srcCombined = src._combined;
+    for (var i = 0; i < len; i++) {
+      final value = srcCombined?[srcCol + i];
+      if (value != null) {
+        (_combined ??= {})[dstCol + i] = value;
+      } else {
+        _combined?.remove(dstCol + i);
+      }
+    }
   }
 
   /// Rounds [length] up to the allocation granularity so a line growing a
@@ -324,6 +351,17 @@ class BufferLine with IndexedItem {
     return (length + 31) & ~31;
   }
 
+  /// The text of this line between [from] and [to].
+  ///
+  /// A cell holds no code point in three different situations, and only one of
+  /// them means "nothing is here": the second half of a double-width glyph,
+  /// which belongs to the glyph before it; a cell the program skipped over
+  /// with a tab or a cursor move rather than writing a space into; and a cell
+  /// that was erased. The last two are blanks on screen and are blanks here
+  /// too - dropping them is what turned a copied `a<tab>b` into `ab`.
+  ///
+  /// Blanks are held back until a glyph follows, so a selection that runs past
+  /// the end of the text does not come back padded with spaces.
   String getText([int? from, int? to]) {
     if (from == null || from < 0) {
       from = 0;
@@ -334,12 +372,24 @@ class BufferLine with IndexedItem {
     }
 
     final builder = StringBuffer();
+    var pendingBlanks = 0;
     for (var i = from; i < to; i++) {
       final codePoint = getCodePoint(i);
       final width = getWidth(i);
-      if (codePoint != 0 && i + width <= to) {
-        builder.writeCharCode(codePoint);
+      if (codePoint == 0) {
+        final continuesWideGlyph = i > 0 && getWidth(i - 1) == 2;
+        if (!continuesWideGlyph) pendingBlanks++;
+        continue;
       }
+      // A wide glyph the range cuts in half belongs to neither side.
+      if (i + width > to) continue;
+      for (var blank = 0; blank < pendingBlanks; blank++) {
+        builder.writeCharCode(0x20);
+      }
+      pendingBlanks = 0;
+      builder.writeCharCode(codePoint);
+      final combined = _combined?[i];
+      if (combined != null) builder.write(combined);
     }
 
     return builder.toString();

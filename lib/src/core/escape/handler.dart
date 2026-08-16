@@ -37,6 +37,8 @@ abstract class EscapeHandler {
 
   void designateCharset(int charset, int name);
 
+  void fullReset();
+
   void unkownEscape(int char);
 
   /* CSI */
@@ -101,6 +103,14 @@ abstract class EscapeHandler {
 
   void insertBlankChars(int amount);
 
+  void backwardTab(int amount);
+
+  void softReset();
+
+  void reportMode(int mode, {required bool isDec});
+
+  void setCursorStyleShape(int shape);
+
   void unknownCSI(int finalByte);
 
   /* Modes */
@@ -144,6 +154,8 @@ abstract class EscapeHandler {
   void setAltBufferMouseScrollMode(bool enabled);
 
   void setBracketedPasteMode(bool enabled);
+
+  void setSynchronizedUpdateMode(bool enabled);
 
   void setUnknownDecMode(int mode, bool enabled);
 

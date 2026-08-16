@@ -2,7 +2,7 @@ class EscapeEmitter {
   const EscapeEmitter();
 
   String primaryDeviceAttributes() {
-    return '\x1b[?1;2c';
+    return '\x1b[?62;22c';
   }
 
   String secondaryDeviceAttributes() {
@@ -20,7 +20,12 @@ class EscapeEmitter {
   }
 
   String cursorPosition(int x, int y) {
-    return '\x1b[$y;${x}R';
+    return '\x1b[${y + 1};${x + 1}R';
+  }
+
+  String reportMode(int mode, int value, {required bool isDec}) {
+    final prefix = isDec ? '?' : '';
+    return '\x1b[$prefix$mode;$value\$y';
   }
 
   String bracketedPaste(String text) {

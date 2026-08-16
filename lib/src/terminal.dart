@@ -17,8 +17,11 @@ import 'package:terminal_view/src/core/mouse/mode.dart';
 import 'package:terminal_view/src/core/platform.dart';
 import 'package:terminal_view/src/core/state.dart';
 import 'package:terminal_view/src/core/tabs.dart';
+import 'package:terminal_view/src/core/cursor_type.dart';
 import 'package:terminal_view/src/utils/ascii.dart';
 import 'package:terminal_view/src/utils/circular_buffer.dart';
+
+const _kSynchronizedUpdateTimeoutMs = 150;
 
 /// [Terminal] is an interface to interact with command line applications. It
 /// translates escape sequences from the application into updates to the
@@ -147,6 +150,12 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   bool _bracketedPasteMode = false;
 
+  bool _synchronizedUpdate = false;
+
+  int _synchronizedUpdateStartedAt = 0;
+
+  TerminalCursorType _cursorShape = TerminalCursorType.block;
+
   /* State getters */
 
   /// Number of cells in a terminal row.
@@ -202,6 +211,10 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   @override
   bool get bracketedPasteMode => _bracketedPasteMode;
 
+  /// The cursor shape the program asked for with DECSCUSR. A view is free to
+  /// ignore it and draw the shape its own configuration asks for.
+  TerminalCursorType get cursorShape => _cursorShape;
+
   /// Current active buffer of the terminal. This is initially [mainBuffer] and
   /// can be switched back and forth from [altBuffer] to [mainBuffer] when
   /// the underlying program requests it.
@@ -226,7 +239,22 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   /// [onTitleChange] when the escape sequences in [data] request it.
   void write(String data) {
     _parser.write(data);
+
+    if (_synchronizedUpdate && !_synchronizedUpdateExpired) {
+      return;
+    }
+
+    _synchronizedUpdate = false;
     notifyListeners();
+  }
+
+  /// A program that enables synchronized output and then dies would freeze the
+  /// screen forever, so the hold is given up after a deadline the way xterm and
+  /// kitty give theirs up.
+  bool get _synchronizedUpdateExpired {
+    final elapsed =
+        DateTime.now().millisecondsSinceEpoch - _synchronizedUpdateStartedAt;
+    return elapsed > _kSynchronizedUpdateTimeoutMs;
   }
 
   /// Sends a key event to the underlying program.
@@ -462,7 +490,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   @override
   void setTapStop() {
-    _tabStops.isSetAt(_buffer.cursorX);
+    _tabStops.setAt(_buffer.cursorX);
   }
 
   @override
@@ -473,6 +501,33 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   @override
   void designateCharset(int charset, int name) {
     _buffer.charset.designate(charset, name);
+  }
+
+  @override
+  void fullReset() {
+    _mainBuffer.clear();
+    _altBuffer.clear();
+    _buffer = _mainBuffer;
+    _tabStops.reset();
+    _cursorStyle.reset();
+    _insertMode = false;
+    _lineFeedMode = false;
+    _cursorKeysMode = false;
+    _reverseDisplayMode = false;
+    _originMode = false;
+    _autoWrapMode = true;
+    _mouseMode = MouseMode.none;
+    _mouseReportMode = MouseReportMode.normal;
+    _cursorBlinkMode = false;
+    _cursorVisibleMode = true;
+    _appKeypadMode = false;
+    _reportFocusMode = false;
+    _altBufferMouseScrollMode = false;
+    _bracketedPasteMode = false;
+    _cursorShape = TerminalCursorType.block;
+    _synchronizedUpdate = false;
+    _mainBuffer.softReset();
+    _altBuffer.softReset();
   }
 
   @override
@@ -550,7 +605,9 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   @override
   void sendCursorPosition() {
-    onOutput?.call(_emitter.cursorPosition(_buffer.cursorX, _buffer.cursorY));
+    final y =
+        _originMode ? _buffer.cursorY - _buffer.marginTop : _buffer.cursorY;
+    onOutput?.call(_emitter.cursorPosition(_buffer.cursorX, y));
   }
 
   @override
@@ -643,6 +700,115 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   @override
   void sendSize() {
     onOutput?.call(_emitter.size(viewHeight, viewWidth));
+  }
+
+  @override
+  void backwardTab(int amount) {
+    for (var i = 0; i < amount; i++) {
+      final stop = _tabStops.findBackward(_buffer.cursorX);
+      if (stop == null) {
+        _buffer.setCursorX(0);
+        return;
+      }
+      _buffer.setCursorX(stop);
+    }
+  }
+
+  @override
+  void softReset() {
+    _insertMode = false;
+    _originMode = false;
+    _autoWrapMode = true;
+    _cursorVisibleMode = true;
+    _appKeypadMode = false;
+    _cursorStyle.reset();
+    _buffer.softReset();
+  }
+
+  @override
+  void reportMode(int mode, {required bool isDec}) {
+    onOutput?.call(
+      _emitter.reportMode(mode, _modeState(mode, isDec: isDec), isDec: isDec),
+    );
+  }
+
+  int _modeState(int mode, {required bool isDec}) {
+    bool? enabled;
+
+    if (!isDec) {
+      switch (mode) {
+        case 4:
+          enabled = _insertMode;
+        case 20:
+          enabled = _lineFeedMode;
+      }
+    } else {
+      switch (mode) {
+        case 1:
+          enabled = _cursorKeysMode;
+        case 5:
+          enabled = _reverseDisplayMode;
+        case 6:
+          enabled = _originMode;
+        case 7:
+          enabled = _autoWrapMode;
+        case 12:
+        case 13:
+          enabled = _cursorBlinkMode;
+        case 25:
+          enabled = _cursorVisibleMode;
+        case 66:
+          enabled = _appKeypadMode;
+        case 1000:
+          enabled = _mouseMode == MouseMode.upDownScroll;
+        case 1002:
+          enabled = _mouseMode == MouseMode.upDownScrollDrag;
+        case 1003:
+          enabled = _mouseMode == MouseMode.upDownScrollMove;
+        case 1004:
+          enabled = _reportFocusMode;
+        case 1006:
+          enabled = _mouseReportMode == MouseReportMode.sgr;
+        case 1007:
+          enabled = _altBufferMouseScrollMode;
+        case 47:
+        case 1047:
+        case 1049:
+          enabled = isUsingAltBuffer;
+        case 2004:
+          enabled = _bracketedPasteMode;
+        case 2026:
+          enabled = _synchronizedUpdate;
+      }
+    }
+
+    if (enabled == null) return 0;
+    return enabled ? 1 : 2;
+  }
+
+  @override
+  void setCursorStyleShape(int shape) {
+    switch (shape) {
+      case 0:
+      case 1:
+        _cursorShape = TerminalCursorType.block;
+        _cursorBlinkMode = true;
+      case 2:
+        _cursorShape = TerminalCursorType.block;
+        _cursorBlinkMode = false;
+      case 3:
+        _cursorShape = TerminalCursorType.underline;
+        _cursorBlinkMode = true;
+      case 4:
+        _cursorShape = TerminalCursorType.underline;
+        _cursorBlinkMode = false;
+      case 5:
+        _cursorShape = TerminalCursorType.verticalBar;
+        _cursorBlinkMode = true;
+      case 6:
+        _cursorShape = TerminalCursorType.verticalBar;
+        _cursorBlinkMode = false;
+    }
   }
 
   @override
@@ -747,6 +913,14 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   @override
   void setBracketedPasteMode(bool enabled) {
     _bracketedPasteMode = enabled;
+  }
+
+  @override
+  void setSynchronizedUpdateMode(bool enabled) {
+    if (enabled && !_synchronizedUpdate) {
+      _synchronizedUpdateStartedAt = DateTime.now().millisecondsSinceEpoch;
+    }
+    _synchronizedUpdate = enabled;
   }
 
   @override

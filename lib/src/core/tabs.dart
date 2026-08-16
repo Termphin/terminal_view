@@ -32,6 +32,17 @@ class TabStops {
     return null;
   }
 
+  /// Finds the previous tab stop index, which satisfies 0 <= index < [start].
+  int? findBackward(int start) {
+    start = min(start, _stops.length);
+    for (var i = start - 1; i >= 0; i--) {
+      if (_stops[i]) {
+        return i;
+      }
+    }
+    return null;
+  }
+
   /// Sets the tab stop at [index]. If there is already a tab stop at [index],
   /// this method does nothing.
   ///

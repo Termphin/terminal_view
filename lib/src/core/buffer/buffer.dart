@@ -9,7 +9,17 @@ import 'package:terminal_view/src/core/cursor.dart';
 import 'package:terminal_view/src/core/reflow.dart';
 import 'package:terminal_view/src/core/state.dart';
 import 'package:terminal_view/src/utils/circular_buffer.dart';
-import 'package:terminal_view/src/utils/unicode_v11.dart';
+import 'package:terminal_view/src/utils/unicode_v16.dart';
+
+const _zeroWidthJoiner = 0x200D;
+
+const _emojiPresentationSelector = 0xFE0F;
+
+const _textPresentationSelector = 0xFE0E;
+
+const _skinToneFirst = 0x1F3FB;
+
+const _skinToneLast = 0x1F3FF;
 
 class Buffer {
   final TerminalState terminal;
@@ -52,6 +62,8 @@ class Buffer {
   var _savedCursorX = 0;
 
   var _savedCursorY = 0;
+
+  var _pendingJoiner = false;
 
   final _savedCursorStyle = CursorStyle();
 
@@ -115,31 +127,97 @@ class Buffer {
   void writeChar(int codePoint) {
     codePoint = charset.translate(codePoint);
 
-    final cellWidth = unicodeV11.wcwidth(codePoint);
-    if (cellWidth == 0 && codePoint != 0) {
-      // Ignore non-printing zero-width characters to keep column alignment
-      // stable when tools emit combining/formatting code points.
+    if (codePoint == _zeroWidthJoiner) {
+      _appendToPreviousCell(codePoint);
+      _pendingJoiner = true;
       return;
     }
 
-    if (_cursorX >= terminal.viewWidth) {
-      index();
-      setCursorX(0);
+    if (_pendingJoiner) {
+      _pendingJoiner = false;
+      _appendToPreviousCell(codePoint);
+      return;
+    }
+
+    if (codePoint >= _skinToneFirst && codePoint <= _skinToneLast) {
+      _appendToPreviousCell(codePoint);
+      return;
+    }
+
+    if (codePoint == _textPresentationSelector) {
+      return;
+    }
+
+    if (codePoint == _emojiPresentationSelector) {
+      _applyEmojiPresentation();
+      return;
+    }
+
+    final cellWidth = unicodeV16.wcwidth(codePoint);
+    if (cellWidth == 0) {
+      _appendToPreviousCell(codePoint);
+      return;
+    }
+
+    if (_cursorX + cellWidth > viewWidth) {
       if (terminal.autoWrapMode) {
-        currentLine.isWrapped = true;
+        _wrapLine();
+      } else {
+        _cursorX = viewWidth - cellWidth;
+        if (_cursorX < 0) return;
       }
     }
 
     final line = currentLine;
+
+    if (terminal.insertMode) {
+      line.insertCells(_cursorX, cellWidth, terminal.cursor);
+    }
+
     line.setCell(_cursorX, codePoint, cellWidth, terminal.cursor);
 
-    if (_cursorX < viewWidth) {
-      _cursorX++;
+    if (cellWidth == 2) {
+      line.setCell(_cursorX + 1, 0, 0, terminal.cursor);
     }
 
-    if (cellWidth == 2) {
-      writeChar(0);
+    _cursorX += cellWidth;
+  }
+
+  void _appendToPreviousCell(int codePoint) {
+    var x = _cursorX - 1;
+    if (x < 0) return;
+
+    final line = currentLine;
+    if (line.getCodePoint(x) == 0 && x > 0) x -= 1;
+    if (line.getCodePoint(x) == 0) return;
+
+    final existing = line.getCombined(x) ?? '';
+    line.setCombined(x, existing + String.fromCharCode(codePoint));
+  }
+
+  void _wrapLine() {
+    if (_cursorX < viewWidth) {
+      currentLine.eraseRange(_cursorX, viewWidth, terminal.cursor);
     }
+
+    index();
+    setCursorX(0);
+    currentLine.isWrapped = true;
+  }
+
+  void _applyEmojiPresentation() {
+    final x = _cursorX - 1;
+    if (x < 0 || _cursorX >= viewWidth) return;
+
+    final line = currentLine;
+    if (line.getWidth(x) != 1) return;
+
+    final codePoint = line.getCodePoint(x);
+    if (codePoint == 0) return;
+
+    line.setCell(x, codePoint, 2, terminal.cursor);
+    line.setCell(_cursorX, 0, 0, terminal.cursor);
+    _cursorX++;
   }
 
   /// The line at the current cursor position.
@@ -312,10 +390,12 @@ class Buffer {
   }
 
   void setCursorX(int cursorX) {
+    _pendingJoiner = false;
     _cursorX = cursorX.clamp(0, viewWidth - 1);
   }
 
   void setCursorY(int cursorY) {
+    _pendingJoiner = false;
     _cursorY = cursorY.clamp(0, viewHeight - 1);
   }
 
@@ -324,7 +404,15 @@ class Buffer {
   }
 
   void moveCursorY(int offset) {
-    setCursorY(_cursorY + offset);
+    var target = _cursorY + offset;
+
+    if (offset > 0 && _cursorY <= _marginBottom) {
+      target = min(target, _marginBottom);
+    } else if (offset < 0 && _cursorY >= _marginTop) {
+      target = max(target, _marginTop);
+    }
+
+    setCursorY(target);
   }
 
   void setCursor(int cursorX, int cursorY) {
@@ -335,14 +423,14 @@ class Buffer {
       maxCursorY = _marginBottom;
     }
 
+    _pendingJoiner = false;
     _cursorX = cursorX.clamp(0, viewWidth - 1);
     _cursorY = cursorY.clamp(0, maxCursorY);
   }
 
   void moveCursor(int offsetX, int offsetY) {
-    final cursorX = _cursorX + offsetX;
-    final cursorY = _cursorY + offsetY;
-    setCursor(cursorX, cursorY);
+    setCursorX(_cursorX + offsetX);
+    moveCursorY(offsetY);
   }
 
   /// Save cursor position, charmap and text attributes.
@@ -353,6 +441,16 @@ class Buffer {
     _savedCursorStyle.background = terminal.cursor.background;
     _savedCursorStyle.attrs = terminal.cursor.attrs;
     charset.save();
+  }
+
+  void softReset() {
+    _savedCursorX = 0;
+    _savedCursorY = 0;
+    _savedCursorStyle.reset();
+    _pendingJoiner = false;
+    charset.reset();
+    resetVerticalMargins();
+    setCursor(0, 0);
   }
 
   /// Restore cursor position, charmap and text attributes.
@@ -490,6 +588,14 @@ class Buffer {
     // 2. Adjust the width.
     if (newWidth != oldWidth) {
       if (terminal.reflowEnabled && !isAltBuffer) {
+        final cursorLine = (max(lines.length - newHeight, 0) + _cursorY)
+            .clamp(0, lines.length - 1);
+
+        final anchor = createAnchor(
+          _cursorX.clamp(0, lines[cursorLine].length),
+          cursorLine,
+        );
+
         final reflowResult = reflow(lines, oldWidth, newWidth);
 
         while (reflowResult.length < newHeight) {
@@ -497,6 +603,14 @@ class Buffer {
         }
 
         lines.replaceWith(reflowResult);
+
+        if (anchor.attached) {
+          final scrollBack = max(lines.length - newHeight, 0);
+          _cursorX = anchor.x.clamp(0, newWidth - 1);
+          _cursorY = (anchor.y - scrollBack).clamp(0, newHeight - 1);
+        }
+
+        anchor.dispose();
       } else {
         lines.forEach((item) => item.resize(newWidth));
       }

@@ -462,8 +462,8 @@ void main() {
         ),
       ));
 
-      await tester.tapAt(tester.getTopLeft(find.byType(TerminalView)) +
-          const Offset(1, 1));
+      await tester.tapAt(
+          tester.getTopLeft(find.byType(TerminalView)) + const Offset(1, 1));
       await tester.pump(kDoubleTapTimeout);
 
       expect(tapped, isNotNull);

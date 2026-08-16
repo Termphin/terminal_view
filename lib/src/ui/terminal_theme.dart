@@ -25,10 +25,19 @@ class TerminalTheme {
     required this.searchHitBackground,
     required this.searchHitBackgroundCurrent,
     required this.searchHitForeground,
+    this.cursorAccent,
+    this.selectionForeground,
+    this.minimumContrastRatio = 1.0,
+    this.drawBoldTextInBrightColors = true,
   });
 
   final Color cursor;
   final Color selection;
+
+  final Color? cursorAccent;
+  final Color? selectionForeground;
+  final double minimumContrastRatio;
+  final bool drawBoldTextInBrightColors;
 
   final Color foreground;
   final Color background;
@@ -84,7 +93,11 @@ class TerminalTheme {
         other.brightWhite == brightWhite &&
         other.searchHitBackground == searchHitBackground &&
         other.searchHitBackgroundCurrent == searchHitBackgroundCurrent &&
-        other.searchHitForeground == searchHitForeground;
+        other.searchHitForeground == searchHitForeground &&
+        other.cursorAccent == cursorAccent &&
+        other.selectionForeground == selectionForeground &&
+        other.minimumContrastRatio == minimumContrastRatio &&
+        other.drawBoldTextInBrightColors == drawBoldTextInBrightColors;
   }
 
   @override
@@ -112,5 +125,9 @@ class TerminalTheme {
         searchHitBackground,
         searchHitBackgroundCurrent,
         searchHitForeground,
+        cursorAccent,
+        selectionForeground,
+        minimumContrastRatio,
+        drawBoldTextInBrightColors,
       ]);
 }

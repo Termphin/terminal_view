@@ -169,6 +169,11 @@ class _TerminalDebuggerHandler implements EscapeHandler {
   }
 
   @override
+  void fullReset() {
+    onCommand('fullReset');
+  }
+
+  @override
   void unkownEscape(int char) {
     onCommand('unkownEscape(${String.fromCharCode(char)})', error: true);
   }
@@ -178,6 +183,26 @@ class _TerminalDebuggerHandler implements EscapeHandler {
   @override
   void repeatPreviousCharacter(int count) {
     onCommand('repeatPreviousCharacter($count)');
+  }
+
+  @override
+  void backwardTab(int amount) {
+    onCommand('backwardTab($amount)');
+  }
+
+  @override
+  void softReset() {
+    onCommand('softReset');
+  }
+
+  @override
+  void reportMode(int mode, {required bool isDec}) {
+    onCommand('reportMode($mode, isDec: $isDec)');
+  }
+
+  @override
+  void setCursorStyleShape(int shape) {
+    onCommand('setCursorStyleShape($shape)');
   }
 
   @override
@@ -437,6 +462,11 @@ class _TerminalDebuggerHandler implements EscapeHandler {
   @override
   void setBracketedPasteMode(bool enabled) {
     onCommand('setBracketedPasteMode($enabled)');
+  }
+
+  @override
+  void setSynchronizedUpdateMode(bool enabled) {
+    onCommand('setSynchronizedUpdateMode($enabled)');
   }
 
   @override

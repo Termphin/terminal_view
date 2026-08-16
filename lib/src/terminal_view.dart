@@ -6,7 +6,7 @@ import 'package:terminal_view/src/core/buffer/cell_offset.dart';
 import 'package:terminal_view/src/core/input/keys.dart';
 import 'package:terminal_view/src/terminal.dart';
 import 'package:terminal_view/src/ui/controller.dart';
-import 'package:terminal_view/src/ui/cursor_type.dart';
+import 'package:terminal_view/src/core/cursor_type.dart';
 import 'package:terminal_view/src/ui/custom_text_edit.dart';
 import 'package:terminal_view/src/ui/gesture/gesture_handler.dart';
 import 'package:terminal_view/src/ui/input_map.dart';

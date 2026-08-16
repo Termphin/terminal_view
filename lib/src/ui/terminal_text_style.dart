@@ -85,13 +85,14 @@ class TerminalStyle {
     );
   }
 
-  /// Underlines are never rendered: [CellFlags.underline] is ignored and the
-  /// style always resolves to [TextDecoration.none].
   TextStyle toTextStyle({
     Color? color,
     Color? backgroundColor,
     bool bold = false,
     bool italic = false,
+    TextDecoration decoration = TextDecoration.none,
+    Color? decorationColor,
+    double? letterSpacing,
   }) {
     return TextStyle(
       fontSize: fontSize,
@@ -103,7 +104,9 @@ class TerminalStyle {
       backgroundColor: backgroundColor,
       fontWeight: bold ? FontWeight.bold : FontWeight.normal,
       fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-      decoration: TextDecoration.none,
+      decoration: decoration,
+      decorationColor: decorationColor ?? color,
+      letterSpacing: letterSpacing,
       // Splits the leading evenly above and below rather than in proportion
       // to the font's own ascent, so a fallback glyph is not nudged off the
       // shared baseline by metrics the primary font never had.

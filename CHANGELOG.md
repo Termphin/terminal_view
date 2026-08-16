@@ -1,3 +1,31 @@
+## [0.1.4] - 2026-08-16
+
+* Draw non-ASCII glyphs at natural size with corrected letter-spacing instead of scaling - fixes distorted box-drawing, CJK and emoji.
+* Fix 1px offset between line text and cursor/selection at fractional scroll.
+* Keep combining marks and ZWJ emoji sequences instead of dropping them.
+* Render underline, strikethrough, invisible and blinking text.
+* Add `TerminalTheme.cursorAccent` to keep the glyph under a block cursor visible.
+* Add `TerminalTheme.drawBoldTextInBrightColors`.
+* Add `TerminalTheme.selectionForeground` for guaranteed contrast in a selection.
+* Add `TerminalTheme.minimumContrastRatio`.
+* SGR 22 now clears both bold and faint, not just faint.
+* Fix kitty keyboard protocol and DEC private mode sequences being wrongly treated as cursor save/restore, teleporting the cursor (broke React Ink UIs such as Claude Code).
+* Swallow DCS/SOS/PM/APC sequences instead of printing their body.
+* Honour DECAWM (`?7l`) instead of wrapping anyway.
+* Keep a wide glyph whole instead of splitting it across lines.
+* Count emoji columns correctly: `U+FE0F` widens the previous character, a ZWJ sequence costs one glyph's width, skin tone modifiers cost nothing extra.
+* Update character width tables from Unicode 11 to Unicode 16.
+* Map the cursor through reflow instead of leaving it on the wrong row after a resize.
+* Support IRM (`CSI 4 h` insert mode).
+* Add CBT, CHT, HPA, HPR, VPR; fix CUU/CUD running out of the scroll region.
+* Add DECSTR, RIS, DECRQM and DECSCUSR (`Terminal.cursorShape`).
+* Support synchronized output (`?2026`), with a 150ms failsafe.
+* Fix HTS (`ESC H` was testing for a tab stop instead of setting one).
+* Report a one-based cursor position from DSR, relative to the scroll region under origin mode.
+* Report `VT220` with ANSI colour from primary DA instead of `VT100`.
+* Reparse an escape that aborts an OSC instead of dropping it.
+* Keep the blanks a program never wrote (tab/cursor-move gaps) when copying text, so `ls -l`, `git log --graph` and other column-aligned TUIs copy correctly.
+
 ## [0.1.3] - 2026-08-14
 
 * Fix null-check crash in `IndexAwareCircularBuffer.[]`. Shrinking

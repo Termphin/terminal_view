@@ -277,6 +277,32 @@ void main() {
       expect(terminal.buffer.cursorX, 2);
     });
 
+    test('combining marks are kept, attached to the base character', () {
+      final terminal = Terminal();
+      terminal.resize(10, 3);
+      terminal.write('A\u0301B');
+
+      final line = terminal.buffer.lines[0];
+      expect(line.getCombined(0), '\u0301');
+      expect(line.toString(), 'A\u0301B');
+    });
+
+    test('a zero width joiner sequence is kept on the base character', () {
+      final terminal = Terminal();
+      terminal.resize(10, 3);
+      terminal.write(
+        '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}x',
+      );
+
+      final line = terminal.buffer.lines[0];
+      expect(
+        line.getCombined(0),
+        '\u200D\u{1F469}\u200D\u{1F467}',
+      );
+      expect(line.getCodePoint(2), 'x'.codeUnitAt(0));
+      expect(terminal.buffer.cursorX, 3);
+    });
+
     test('leading zero-width characters are ignored', () {
       final terminal = Terminal();
       terminal.resize(10, 3);
@@ -297,6 +323,30 @@ void main() {
       expect(line.getCodePoint(0), 'A'.codeUnitAt(0));
       expect(line.getCodePoint(1), 'B'.codeUnitAt(0));
       expect(terminal.buffer.cursorX, 2);
+    });
+  });
+
+  group('Buffer.getText() over a selection', () {
+    test('keeps a tab-aligned table aligned', () {
+      // What `ls -l`, `git log --graph` or any TUI writes: columns placed with
+      // tabs and cursor moves, not with spaces.
+      final terminal = Terminal(maxLines: 100);
+      terminal.write('name\tsize\r\n');
+      terminal.write('a.txt\t12\r\n');
+      final text = terminal.buffer.getText(
+        BufferRangeLine(const CellOffset(0, 0), const CellOffset(20, 0)),
+      );
+      expect(text, 'name    size');
+    });
+
+    test('keeps the gaps on every line of a multi-line selection', () {
+      final terminal = Terminal(maxLines: 100);
+      terminal.write('one\ttwo\r\n');
+      terminal.write('three\tfour\r\n');
+      final text = terminal.buffer.getText(
+        BufferRangeLine(const CellOffset(0, 0), const CellOffset(20, 1)),
+      );
+      expect(text, 'one     two\nthree   four');
     });
   });
 }

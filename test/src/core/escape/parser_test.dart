@@ -38,5 +38,13 @@ void main() {
       verify(parser.handler.setCursorUnderline());
       verify(parser.handler.resetCursorStyle());
     });
+
+    test('SGR 22 clears both bold and faint', () {
+      final parser = EscapeParser(MockEscapeHandler());
+      parser.write('\x1b[22m');
+
+      verify(parser.handler.unsetCursorBold());
+      verify(parser.handler.unsetCursorFaint());
+    });
   });
 }
