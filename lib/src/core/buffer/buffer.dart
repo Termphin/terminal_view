@@ -235,20 +235,33 @@ class Buffer {
     return _currentLine!;
   }
 
+  /// Clamps the raw cursor column into the screen.
+  ///
+  /// After a write that fills the last column, [_cursorX] is left at
+  /// [viewWidth] as a pending-wrap sentinel. Operations that address cells -
+  /// erases, deletes, inserts, relative moves - must collapse the sentinel to
+  /// the last real column first, the way xterm's _restrictCursor does, or they
+  /// act on an empty range past the end of the line (and DCH asserts).
+  @pragma('vm:prefer-inline')
+  void _restrictCursor() {
+    if (_cursorX >= viewWidth) {
+      _cursorX = viewWidth - 1;
+    }
+  }
+
   void backspace() {
-    if (_cursorX == 0 && currentLine.isWrapped) {
-      currentLine.isWrapped = false;
-      moveCursor(viewWidth - 1, -1);
-    } else if (_cursorX == viewWidth) {
-      moveCursor(-2, 0);
-    } else {
-      moveCursor(-1, 0);
+    // xterm: collapse the pending-wrap sentinel first, then step one left;
+    // BS from the sentinel position therefore lands two columns behind it.
+    _restrictCursor();
+    if (_cursorX > 0) {
+      _cursorX--;
     }
   }
 
   /// Erases the viewport from the cursor position to the end of the buffer,
   /// including the cursor position.
   void eraseDisplayFromCursor() {
+    _restrictCursor();
     eraseLineFromCursor();
 
     for (var i = absoluteCursorY + 1; i < height; i++) {
@@ -282,15 +295,17 @@ class Buffer {
   /// Erases the line from the cursor to the end of the line, including the
   /// cursor position.
   void eraseLineFromCursor() {
+    _restrictCursor();
     currentLine.isWrapped = false;
     currentLine.eraseRange(_cursorX, viewWidth, terminal.cursor);
   }
 
   /// Erases the line from the start of the line to the cursor, including the
-  /// cursor.
+  /// cursor. ECMA-48: "from the beginning ... through the active position".
   void eraseLineToCursor() {
+    _restrictCursor();
     currentLine.isWrapped = false;
-    currentLine.eraseRange(0, _cursorX, terminal.cursor);
+    currentLine.eraseRange(0, _cursorX + 1, terminal.cursor);
   }
 
   /// Erases the line at the current cursor position.
@@ -301,6 +316,7 @@ class Buffer {
 
   /// Erases [count] cells starting at the cursor position.
   void eraseChars(int count) {
+    _restrictCursor();
     final start = _cursorX;
     currentLine.eraseRange(start, start + count, terminal.cursor);
   }
@@ -400,6 +416,9 @@ class Buffer {
   }
 
   void moveCursorX(int offset) {
+    // Relative moves resolve from the displayed cursor position, so collapse
+    // the pending-wrap sentinel first (xterm _moveCursor does the same).
+    _restrictCursor();
     setCursorX(_cursorX + offset);
   }
 
@@ -429,6 +448,7 @@ class Buffer {
   }
 
   void moveCursor(int offsetX, int offsetY) {
+    _restrictCursor();
     setCursorX(_cursorX + offsetX);
     moveCursorY(offsetY);
   }
@@ -455,8 +475,11 @@ class Buffer {
 
   /// Restore cursor position, charmap and text attributes.
   void restoreCursor() {
-    _cursorX = _savedCursorX;
-    _cursorY = _savedCursorY;
+    // The saved position can be off-screen after a resize; clamp it so the
+    // next write lands where the cursor is drawn instead of wrapping.
+    _pendingJoiner = false;
+    _cursorX = _savedCursorX.clamp(0, viewWidth - 1);
+    _cursorY = _savedCursorY.clamp(0, viewHeight - 1);
     terminal.cursor.foreground = _savedCursorStyle.foreground;
     terminal.cursor.background = _savedCursorStyle.background;
     terminal.cursor.attrs = _savedCursorStyle.attrs;
@@ -482,6 +505,7 @@ class Buffer {
   }
 
   void deleteChars(int count) {
+    _restrictCursor();
     final start = _cursorX.clamp(0, viewWidth);
     count = min(count, viewWidth - start);
     currentLine.removeCells(start, count, terminal.cursor);
@@ -505,6 +529,7 @@ class Buffer {
   }
 
   void insertBlankChars(int count) {
+    _restrictCursor();
     currentLine.insertCells(_cursorX, count, terminal.cursor);
   }
 

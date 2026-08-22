@@ -342,6 +342,11 @@ class TerminalPainter {
           foreground: foreground,
           background: background,
           flags: flags,
+          // A batched run assumes each glyph advances exactly one cell. When
+          // the font's advance differs (bold or a fallback took over), the
+          // drift accumulates across the run and the glyphs walk off the
+          // grid the cursor is drawn on - so correct the run to the grid.
+          fitWidth: cellWidth * runLength,
         );
 
         i = j;

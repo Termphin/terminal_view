@@ -1,3 +1,13 @@
+## [0.1.5] - 2026-08-22
+
+* Fix cursor landing on the wrong column after a resize (saved cursor position wasn't clamped to the new size).
+* Fix erase/insert/delete operations acting on an empty range when the cursor was in the pending-wrap column.
+* Fix backspace at end of line moving two columns instead of one.
+* Fix EL/ED "to cursor" leaving the cursor cell itself unerased.
+* Fix DECSTBM (`CSI r`) not moving the cursor home, and `CSI 1;0r` collapsing the region to nothing.
+* Fix arrow keys following the numeric-keypad mode instead of DECCKM.
+* Fix glyph runs drifting off the character grid when a fallback or bold font has a different advance width.
+
 ## [0.1.4] - 2026-08-16
 
 * Draw non-ASCII glyphs at natural size with corrected letter-spacing instead of scaling - fixes distorted box-drawing, CJK and emoji.

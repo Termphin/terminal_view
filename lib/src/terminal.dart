@@ -150,6 +150,12 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   bool _bracketedPasteMode = false;
 
+  /// Origin and autowrap modes captured by DECSC/SCOSC, restored by
+  /// DECRC/SCORC (xterm saves these alongside the cursor position).
+  var _savedOriginMode = false;
+
+  var _savedAutoWrapMode = true;
+
   bool _synchronizedUpdate = false;
 
   int _synchronizedUpdateStartedAt = 0;
@@ -425,7 +431,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   @override
   void backspaceReturn() {
-    _buffer.moveCursorX(-1);
+    _buffer.backspace();
   }
 
   @override
@@ -470,11 +476,15 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   @override
   void saveCursor() {
     _buffer.saveCursor();
+    _savedOriginMode = _originMode;
+    _savedAutoWrapMode = _autoWrapMode;
   }
 
   @override
   void restoreCursor() {
     _buffer.restoreCursor();
+    _originMode = _savedOriginMode;
+    _autoWrapMode = _savedAutoWrapMode;
   }
 
   @override
@@ -524,6 +534,8 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     _reportFocusMode = false;
     _altBufferMouseScrollMode = false;
     _bracketedPasteMode = false;
+    _savedOriginMode = false;
+    _savedAutoWrapMode = true;
     _cursorShape = TerminalCursorType.block;
     _synchronizedUpdate = false;
     _mainBuffer.softReset();
@@ -612,7 +624,18 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
   @override
   void setMargins(int top, [int? bottom]) {
-    _buffer.setVerticalMargins(top, bottom ?? viewHeight - 1);
+    bottom ??= viewHeight - 1;
+
+    // A region smaller than two lines is not applied at all (xterm requires
+    // the bottom to be below the top).
+    if (bottom <= top) {
+      return;
+    }
+
+    _buffer.setVerticalMargins(top, bottom);
+
+    // DECSTBM moves the cursor to the home position (DEC STD 070).
+    _buffer.setCursor(0, 0);
   }
 
   @override
@@ -722,6 +745,8 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     _cursorVisibleMode = true;
     _appKeypadMode = false;
     _cursorStyle.reset();
+    _savedOriginMode = false;
+    _savedAutoWrapMode = true;
     _buffer.softReset();
   }
 

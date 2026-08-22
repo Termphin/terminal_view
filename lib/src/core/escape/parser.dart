@@ -182,7 +182,14 @@ class EscapeParser {
 
       if (char == Ascii.ESC) {
         if (_queue.isEmpty) return false;
-        _queue.consume();
+        final next = _queue.consume();
+        if (next == Ascii.backslash) {
+          return true;
+        }
+
+        // Anything but ST aborts the sequence; both characters go back so
+        // the ESC can start a new sequence of its own (as with OSC above).
+        _queue.rollback(2);
         return true;
       }
     }
@@ -294,6 +301,10 @@ class EscapeParser {
         if (char >= Ascii.space) {
           _csi.intermediate = char;
         }
+        // Note: C0 controls inside an unfinished CSI are ignored rather than
+        // executed the way xterm does. Executing them here would be replayed
+        // every time the rolled-back partial sequence is retried on the next
+        // write, so each chunk would apply the control twice.
         continue;
       }
 
@@ -695,17 +706,19 @@ class EscapeParser {
   void _csiHandleSetMargins() {
     if (_csi.prefix != null || _csi.intermediate != null) return;
 
+    if (_csi.params.length > 2) return;
+
+    // A missing or zero parameter means its default: the first line for the
+    // top margin, the bottom of the screen for the bottom margin.
     var top = 1;
     int? bottom;
 
-    if (_csi.params.length > 2) return;
-
-    if (_csi.params.isNotEmpty) {
+    if (_csi.params.isNotEmpty && _csi.params[0] != 0) {
       top = _csi.params[0];
+    }
 
-      if (_csi.params.length == 2) {
-        bottom = _csi.params[1] - 1;
-      }
+    if (_csi.params.length == 2 && _csi.params[1] != 0) {
+      bottom = _csi.params[1] - 1;
     }
 
     handler.setMargins(top - 1, bottom);

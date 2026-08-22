@@ -121,7 +121,9 @@ class KeytabInputHandler implements TerminalInputHandler {
       alt: event.alt,
       shift: event.shift,
       newLineMode: event.state.lineFeedMode,
-      appCursorKeys: event.state.appKeypadMode,
+      // DECCKM (?1) decides whether arrows send SS3 or CSI; DECKPAM (ESC =)
+      // governs the keypad keys and must not leak into the arrows.
+      appCursorKeys: event.state.cursorKeysMode,
       appKeyPad: event.state.appKeypadMode,
       appScreen: event.altBuffer,
       macos: event.platform == TerminalTargetPlatform.macos,
