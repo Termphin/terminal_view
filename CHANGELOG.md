@@ -1,3 +1,7 @@
+## [0.2.0] - 2026-09-02
+
+* Stop drawing underlined text (SGR 4). The attribute is still parsed and tracked; it is no longer painted, since an underline on a one-line-tall grid row collides with the descenders above it and with the cursor and selection below.
+
 ## [0.1.5] - 2026-08-22
 
 * Fix cursor landing on the wrong column after a resize (saved cursor position wasn't clamped to the new size).

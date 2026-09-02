@@ -1,6 +1,6 @@
 name: terminal_view
 description: A fast terminal emulator widget for Flutter, with a VT100/xterm-compatible parser and a renderer built for mobile.
-version: 0.1.5
+version: 0.2.0
 homepage: https://github.com/Termphin/terminal_view
 repository: https://github.com/Termphin/terminal_view
 issue_tracker: https://github.com/Termphin/terminal_view/issues

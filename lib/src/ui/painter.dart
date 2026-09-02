@@ -509,22 +509,15 @@ class TerminalPainter {
     return color;
   }
 
-  TextDecoration _decorationFor(int flags) {
-    final underline = flags & CellFlags.underline != 0;
-    final strikethrough = flags & CellFlags.strikethrough != 0;
-
-    if (underline && strikethrough) {
-      return TextDecoration.combine(
-        [TextDecoration.underline, TextDecoration.lineThrough],
-      );
-    } else if (underline) {
-      return TextDecoration.underline;
-    } else if (strikethrough) {
-      return TextDecoration.lineThrough;
-    }
-
-    return TextDecoration.none;
-  }
+  /// Underline ([CellFlags.underline]) is parsed and tracked like every other
+  /// attribute but never drawn: it lands on the baseline of a grid whose rows
+  /// are exactly one line tall, where it runs into the descenders above it and
+  /// into the cursor and the selection below. Everything that emits it - man
+  /// pages, `ls` colours, hyperlinks - says the same thing with colour too.
+  TextDecoration _decorationFor(int flags) =>
+      flags & CellFlags.strikethrough != 0
+      ? TextDecoration.lineThrough
+      : TextDecoration.none;
 
   double _contrastRatio(Color a, Color b) {
     final la = a.computeLuminance();
