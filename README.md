@@ -1,4 +1,8 @@
-[![Termphin - an SSH client whose sessions survive the dropped connection](https://termphin.dev/gh-banner.webp)](https://termphin.dev)
+[![Termphin - an SSH client whose sessions survive the dropped connection](https://termphin.dev/gh-banner.webp?v=3)](https://termphin.dev)
+
+The terminal widget behind [Termphin](https://termphin.dev), an SSH client whose
+sessions survive the dropped connection. Published on its own - nothing here
+depends on the app.
 
 # terminal_view
 
