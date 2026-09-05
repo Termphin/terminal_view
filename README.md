@@ -1,3 +1,5 @@
+[![Termphin - an SSH client whose sessions survive the dropped connection](https://termphin.dev/gh-banner.webp)](https://termphin.dev)
+
 # terminal_view
 
 A terminal emulator widget for Flutter. Give it bytes from a shell, an SSH
