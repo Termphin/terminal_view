@@ -15,6 +15,7 @@ import 'package:terminal_view/src/core/mouse/button.dart';
 import 'package:terminal_view/src/core/mouse/button_state.dart';
 import 'package:terminal_view/src/core/mouse/handler.dart';
 import 'package:terminal_view/src/core/mouse/mode.dart';
+import 'package:terminal_view/src/core/overlay.dart';
 import 'package:terminal_view/src/core/platform.dart';
 import 'package:terminal_view/src/core/state.dart';
 import 'package:terminal_view/src/core/tabs.dart';
@@ -110,6 +111,26 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
   );
 
   final _tabStops = TabStops();
+
+  /// Drawn over the screen by the view; see [TerminalOverlay].
+  TerminalOverlay? get overlay => _overlay;
+  TerminalOverlay? _overlay;
+  set overlay(TerminalOverlay? value) {
+    if (value == _overlay) return;
+    _overlay = value;
+    if (!_disposed) notifyListeners();
+  }
+
+  /// Whether the program has asked for its output to be held back while it
+  /// draws a frame (synchronized update, DEC 2026). Anything that repaints
+  /// the view on its own should wait for this to clear, or it shows the frame
+  /// half drawn.
+  bool get isHoldingFrame => _synchronizedUpdate && !_synchronizedUpdateExpired;
+
+  /// Called after output from [write] has been applied to the buffer and
+  /// before listeners hear of it - the point to compare an [overlay] against
+  /// what the program actually drew.
+  void Function()? onAfterWrite;
 
   /// The last character written to the buffer. Used to implement some escape
   /// sequences that repeat the last character.
@@ -257,6 +278,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
 
     _cancelSynchronizedUpdateTimer();
     _synchronizedUpdate = false;
+    onAfterWrite?.call();
     notifyListeners();
   }
 
@@ -275,6 +297,7 @@ class Terminal with Observable implements TerminalState, EscapeHandler {
     _cancelSynchronizedUpdateTimer();
     _synchronizedUpdate = false;
     if (!_disposed) {
+      onAfterWrite?.call();
       notifyListeners();
     }
   }

@@ -4,7 +4,9 @@ import 'dart:ui';
 
 import 'package:flutter/rendering.dart';
 import 'package:flutter/widgets.dart';
+import 'package:terminal_view/src/core/buffer/cell_flags.dart';
 import 'package:terminal_view/src/core/cell.dart';
+import 'package:terminal_view/src/core/overlay.dart';
 import 'package:terminal_view/src/core/buffer/cell_offset.dart';
 import 'package:terminal_view/src/core/buffer/range.dart';
 import 'package:terminal_view/src/core/buffer/range_line.dart';
@@ -508,9 +510,31 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   /// The offset of the cursor from the top left corner of this render object.
   Offset get cursorOffset {
     return Offset(
-      _terminal.buffer.cursorX * _painter.cellSize.width,
-      _rowY(_terminal.buffer.absoluteCursorY),
+      _cursorColumn * _painter.cellSize.width,
+      _rowY(_cursorLine),
     );
+  }
+
+  /// Where the cursor is drawn: the overlay's position when it has one on
+  /// the screen.
+  CellOffset? get _overlayCursor {
+    final moved = _terminal.overlay?.cursor;
+    if (moved == null ||
+        moved.x < 0 ||
+        moved.x >= _terminal.viewWidth ||
+        moved.y < 0 ||
+        moved.y >= _terminal.viewHeight) {
+      return null;
+    }
+    return moved;
+  }
+
+  int get _cursorColumn => _overlayCursor?.x ?? _terminal.buffer.cursorX;
+
+  int get _cursorLine {
+    final moved = _overlayCursor;
+    if (moved == null) return _terminal.buffer.absoluteCursorY;
+    return _terminal.buffer.scrollBack + moved.y;
   }
 
   Size get cellSize {
@@ -556,8 +580,21 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       );
     }
 
-    if (_terminal.buffer.absoluteCursorY >= effectFirstLine &&
-        _terminal.buffer.absoluteCursorY <= effectLastLine) {
+    final overlay = _terminal.overlay;
+    final overlayCells = overlay?.cells ?? const <TerminalOverlayCell>[];
+    if (overlayCells.isNotEmpty) {
+      _paintOverlay(
+        canvas,
+        offset,
+        overlayCells,
+        overlay!.dimmed,
+        effectFirstLine,
+        effectLastLine,
+      );
+    }
+
+    final cursorLine = _cursorLine;
+    if (cursorLine >= effectFirstLine && cursorLine <= effectLastLine) {
       if (_isComposingText) {
         _paintComposingText(canvas, offset + cursorOffset);
       }
@@ -571,7 +608,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         );
 
         if (_focusNode.hasFocus) {
-          _paintCursorAccent(canvas, offset);
+          _paintCursorAccent(canvas, offset, overlayCells);
         }
       }
     }
@@ -719,14 +756,98 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     }
   }
 
-  void _paintCursorAccent(Canvas canvas, Offset offset) {
+  /// Paints overlay cells over what the program last drew there.
+  ///
+  /// Backgrounds first and glyphs second, so one cell's fill never cuts into
+  /// the glyph beside it. Each fill is snapped outward to whole pixels and
+  /// drawn without antialiasing: a cell edge falls between pixels, and a soft
+  /// edge there lets the glyph underneath show through as a hairline.
+  void _paintOverlay(
+    Canvas canvas,
+    Offset offset,
+    List<TerminalOverlayCell> overlayCells,
+    bool dimmed,
+    int firstLine,
+    int lastLine,
+  ) {
+    final scrollBack = _terminal.buffer.scrollBack;
+    final cellWidth = _painter.cellSize.width;
+    final cellHeight = _painter.cellSize.height;
+    final fill = Paint()..isAntiAlias = false;
+
+    Offset? place(TerminalOverlayCell entry) {
+      final line = scrollBack + entry.row;
+      if (line < firstLine || line > lastLine) return null;
+      return offset.translate(entry.column * cellWidth, _rowY(line));
+    }
+
+    for (final entry in overlayCells) {
+      final cellOffset = place(entry);
+      if (cellOffset == null) continue;
+      final cell = entry.cell;
+      final bold = cell.flags & CellFlags.bold != 0;
+      fill.color = cell.flags & CellFlags.inverse != 0
+          ? _painter.resolveForegroundColor(cell.foreground, bold: bold)
+          : _painter.resolveBackgroundColor(cell.background);
+      canvas.drawRect(
+        Rect.fromLTRB(
+          cellOffset.dx.floorToDouble(),
+          cellOffset.dy.floorToDouble(),
+          (cellOffset.dx + cellWidth).ceilToDouble(),
+          (cellOffset.dy + cellHeight).ceilToDouble(),
+        ),
+        fill,
+      );
+    }
+
+    for (final entry in overlayCells) {
+      final cellOffset = place(entry);
+      if (cellOffset == null) continue;
+      final cell = entry.cell;
+      if (dimmed) {
+        final bold = cell.flags & CellFlags.bold != 0;
+        final color = cell.flags & CellFlags.inverse != 0
+            ? _painter.resolveBackgroundColor(cell.background)
+            : _painter.resolveForegroundColor(cell.foreground, bold: bold);
+        _painter.paintCellForegroundColor(
+          canvas,
+          cellOffset,
+          cell,
+          color.withValues(alpha: color.a * 0.55),
+        );
+      } else {
+        _painter.paintCellForeground(
+          canvas,
+          cellOffset,
+          cell,
+          fitWidth: cellWidth,
+        );
+      }
+    }
+  }
+
+  void _paintCursorAccent(
+    Canvas canvas,
+    Offset offset,
+    List<TerminalOverlayCell> overlayCells,
+  ) {
     final accent = _painter.theme.cursorAccent;
     if (accent == null || _cursorType != TerminalCursorType.block) return;
 
     final buffer = _terminal.buffer;
-    final line = buffer.lines[buffer.absoluteCursorY];
-    final cellData = CellData.empty();
-    line.getCellData(buffer.cursorX, cellData);
+    final column = _cursorColumn;
+    final screenRow = _cursorLine - buffer.scrollBack;
+    CellData? cellData;
+    for (final entry in overlayCells) {
+      if (entry.row == screenRow && entry.column == column) {
+        cellData = entry.cell;
+        break;
+      }
+    }
+    if (cellData == null) {
+      cellData = CellData.empty();
+      buffer.lines[_cursorLine].getCellData(column, cellData);
+    }
 
     _painter.paintCellForegroundColor(
       canvas,

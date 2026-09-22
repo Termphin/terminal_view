@@ -1,3 +1,8 @@
+## [0.3.0] - 2026-09-22
+
+* Add `TerminalOverlay` for drawing over the screen.
+* Add `Terminal.onAfterWrite` and `Terminal.isHoldingFrame`.
+
 ## [0.2.1] - 2026-09-19
 
 * Flush output held by synchronized update mode (DEC 2026) when nothing turns it off.
