@@ -85,6 +85,70 @@ void main() {
   });
 
   group('Buffer.resize()', () {
+    test(
+        'a wider terminal can be written to its last column once the '
+        'scrollback has wrapped around', () {
+      final terminal = Terminal(maxLines: 50);
+      terminal.resize(64, 10);
+      for (var i = 0; i < 120; i++) {
+        terminal.write('line $i\r\n');
+      }
+
+      terminal.resize(100, 10);
+      terminal.write('\x1b[1;100HX');
+
+      for (var i = 0; i < terminal.buffer.lines.length; i++) {
+        expect(terminal.buffer.lines[i].length, 100);
+      }
+      expect(terminal.buffer.lines.length, lessThanOrEqualTo(50));
+    });
+
+    test('keeps line order through a reflow after the scrollback was cleared',
+        () {
+      final terminal = Terminal();
+      terminal.resize(64, 5);
+      for (var i = 0; i < 12; i++) {
+        terminal.write('line $i\r\n');
+      }
+      terminal.write('\x1b[3J');
+
+      terminal.resize(100, 5);
+
+      final text = [
+        for (var i = 0; i < terminal.buffer.lines.length; i++)
+          terminal.buffer.lines[i].getText().trim(),
+      ].where((line) => line.isNotEmpty).toList();
+      expect(text, ['line 8', 'line 9', 'line 10', 'line 11']);
+    });
+    test('leaves the alt buffer lines where selection expects them', () {
+      final terminal = Terminal();
+      terminal.resize(80, 40);
+      terminal.write('\x1b[?1049h');
+      for (var row = 0; row < 40; row++) {
+        terminal.write('\x1b[${row + 1};1Hrow$row');
+      }
+
+      terminal.resize(80, 20);
+      terminal.resize(80, 40);
+
+      final line = terminal.buffer.lines[5];
+      expect(line.index, 5);
+      expect(
+          terminal.buffer.createAnchorFromOffset(const CellOffset(0, 5)).y, 5);
+    });
+
+    test('clearing the scrollback keeps line indexes', () {
+      final terminal = Terminal();
+      terminal.resize(80, 10);
+      for (var i = 0; i < 30; i++) {
+        terminal.write('line $i\r\n');
+      }
+
+      terminal.write('\x1b[3J');
+
+      expect(terminal.buffer.lines[3].index, 3);
+    });
+
     test('should resize the buffer', () {
       final terminal = Terminal();
       terminal.resize(10, 10);

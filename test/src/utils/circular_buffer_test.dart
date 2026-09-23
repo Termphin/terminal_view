@@ -315,6 +315,28 @@ void main() {
       expect(cl[4], 9.indexed);
     });
 
+    test('trim start keeps the index of the items that remain', () {
+      final cl = IndexAwareCircularBuffer<IndexedValue<int>>(10);
+      final items = List.generate(6, IndexedValue.new);
+      cl.pushAll(items);
+
+      cl.trimStart(2);
+
+      expect(items[2].index, 0);
+      expect(items[5].index, 3);
+      expect(items[0].attached, isFalse);
+    });
+
+    test('replace with keeps order once the start has moved', () {
+      final cl = IndexAwareCircularBuffer<IndexedValue<int>>(5);
+      cl.pushAll(List.generate(7, IndexedValue.new));
+
+      cl.replaceWith(List.generate(3, (i) => IndexedValue(i + 10)));
+
+      expect(cl.toList(), [10.indexed, 11.indexed, 12.indexed]);
+      expect(cl[2].index, 2);
+    });
+
     test("trim start with more than length works", () {
       final cl = IndexAwareCircularBuffer<IndexedValue<int>>(10);
       cl.pushAll(

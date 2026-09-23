@@ -1,3 +1,9 @@
+## [0.3.1] - 2026-09-23
+
+* Fix scroll gestures no longer reaching a full-screen application after a theme change above the terminal.
+* Fix selection landing rows away from the touch after the alternate screen was resized or the scrollback cleared (`CSI 3 J`).
+* Fix a `RangeError` writing to a line after the terminal was widened once the scrollback had been cleared.
+
 ## [0.3.0] - 2026-09-22
 
 * Add `TerminalOverlay` for drawing over the screen.
