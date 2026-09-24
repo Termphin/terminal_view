@@ -1,3 +1,7 @@
+## [0.3.2] - 2026-09-24
+
+* Fix the return key sending Enter twice on iOS, where one press is reported both as the newline action and as a typed newline.
+
 ## [0.3.1] - 2026-09-23
 
 * Fix scroll gestures no longer reaching a full-screen application after a theme change above the terminal.

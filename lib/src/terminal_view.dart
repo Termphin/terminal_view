@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
@@ -231,6 +233,7 @@ class TerminalViewState extends State<TerminalView> {
 
   @override
   void dispose() {
+    _returnEchoTimer?.cancel();
     widget.terminal.removeListener(_onScrollOwnerMaybeChanged);
     if (widget.focusNode == null) {
       _focusNode.dispose();
@@ -303,7 +306,7 @@ class TerminalViewState extends State<TerminalView> {
           // Android sends TextInputAction.newline when the user presses the virtual keyboard's enter key.
           if (action == TextInputAction.done ||
               action == TextInputAction.newline) {
-            widget.terminal.keyInput(TerminalKey.enter);
+            _onReturn(_ReturnSource.action);
           }
         },
         onKeyEvent: _handleKeyEvent,
@@ -420,7 +423,38 @@ class TerminalViewState extends State<TerminalView> {
     return _customTextEditKey.currentState?.hasInputConnection == true;
   }
 
+  /// Where the return key reached us from, and when, for [_onReturn].
+  _ReturnSource? _lastReturn;
+  Timer? _returnEchoTimer;
+
+  /// One press of the return key as Enter.
+  ///
+  /// iOS reports a press twice - as the newline action and as "\n" typed
+  /// into the field - in either order, where Android sends only the action.
+  /// The second report from the other source, close behind the first, is
+  /// that same press and is dropped. Two from the same source are two
+  /// presses.
+  void _onReturn(_ReturnSource source) {
+    final last = _lastReturn;
+    _returnEchoTimer?.cancel();
+    if (last != null && last != source) {
+      _lastReturn = null;
+      return;
+    }
+    _lastReturn = source;
+    _returnEchoTimer = Timer(
+      const Duration(milliseconds: 100),
+      () => _lastReturn = null,
+    );
+    widget.terminal.keyInput(TerminalKey.enter);
+  }
+
   void _onInsert(String text) {
+    if (text == '\n') {
+      _onReturn(_ReturnSource.text);
+      _scrollToBottom();
+      return;
+    }
     final key = charToTerminalKey(text.trim());
 
     // On mobile platforms there is no guarantee that virtual keyboard will
@@ -585,3 +619,5 @@ class _TerminalView extends LeafRenderObjectWidget {
       ..composingText = composingText;
   }
 }
+
+enum _ReturnSource { action, text }

@@ -471,4 +471,63 @@ void main() {
       expect(tapped!.y, 0);
     });
   });
+
+  group('TerminalView return key', () {
+    Future<List<String>> pumpTerminal(WidgetTester tester) async {
+      final output = <String>[];
+      final terminal = Terminal(onOutput: output.add);
+      await tester.pumpWidget(MaterialApp(
+        home: Scaffold(body: TerminalView(terminal, autofocus: true)),
+      ));
+      await tester.tap(find.byType(TerminalView));
+      await tester.pump(Duration(seconds: 1));
+      return output;
+    }
+
+    // iOS reports one press of Return twice: as the newline action, and as
+    // "\n" typed into the field. Android sends only the action.
+    testWidgets('one press reported both ways sends one Enter', (
+      tester,
+    ) async {
+      final output = await pumpTerminal(tester);
+
+      await binding.testTextInput.receiveAction(TextInputAction.newline);
+      binding.testTextInput.enterText('\n');
+      await tester.pump(Duration(milliseconds: 300));
+
+      expect(output.join(), '\r');
+    });
+
+    testWidgets('the same, with the text arriving first', (tester) async {
+      final output = await pumpTerminal(tester);
+
+      binding.testTextInput.enterText('\n');
+      await binding.testTextInput.receiveAction(TextInputAction.newline);
+      await tester.pump(Duration(milliseconds: 300));
+
+      expect(output.join(), '\r');
+    });
+
+    testWidgets('the action alone is still Enter', (tester) async {
+      final output = await pumpTerminal(tester);
+
+      await binding.testTextInput.receiveAction(TextInputAction.newline);
+      await tester.pump(Duration(milliseconds: 300));
+
+      expect(output.join(), '\r');
+    });
+
+    testWidgets('two presses are two Enters', (tester) async {
+      final output = await pumpTerminal(tester);
+
+      await binding.testTextInput.receiveAction(TextInputAction.newline);
+      binding.testTextInput.enterText('\n');
+      await tester.pump(Duration(milliseconds: 300));
+      await binding.testTextInput.receiveAction(TextInputAction.newline);
+      binding.testTextInput.enterText('\n');
+      await tester.pump(Duration(milliseconds: 300));
+
+      expect(output.join(), '\r\r');
+    });
+  });
 }
