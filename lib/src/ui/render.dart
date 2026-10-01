@@ -24,6 +24,18 @@ import 'package:terminal_view/src/ui/terminal_theme.dart';
 
 typedef EditableRectCallback = void Function(Rect rect, Rect caretRect);
 
+/// Paints over the text of rows [firstLine] to [lastLine], inside the
+/// terminal: a cell sits at `origin + terminal.getOffset(cell)` on [canvas],
+/// and whatever moves the text, a scroll or an overscroll effect, moves this
+/// with it.
+typedef TerminalForegroundPainter = void Function(
+  Canvas canvas,
+  Offset origin,
+  RenderTerminal terminal,
+  int firstLine,
+  int lastLine,
+);
+
 class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   RenderTerminal({
     required Terminal terminal,
@@ -40,6 +52,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     Duration? blinkInterval,
     EditableRectCallback? onEditableRect,
     String? composingText,
+    TerminalForegroundPainter? foregroundPainter,
   })  : _blinkInterval = blinkInterval,
         _terminal = terminal,
         _controller = controller,
@@ -51,6 +64,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         _alwaysShowCursor = alwaysShowCursor,
         _onEditableRect = onEditableRect,
         _composingText = composingText,
+        _foregroundPainter = foregroundPainter,
         _painter = TerminalPainter(
           theme: theme,
           textStyle: textStyle,
@@ -114,6 +128,13 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   set theme(TerminalTheme value) {
     if (value == _painter.theme) return;
     _painter.theme = value;
+    markNeedsPaint();
+  }
+
+  TerminalForegroundPainter? _foregroundPainter;
+  set foregroundPainter(TerminalForegroundPainter? value) {
+    if (value == _foregroundPainter) return;
+    _foregroundPainter = value;
     markNeedsPaint();
   }
 
@@ -592,6 +613,14 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
         effectLastLine,
       );
     }
+
+    _foregroundPainter?.call(
+      canvas,
+      offset,
+      this,
+      effectFirstLine,
+      effectLastLine,
+    );
 
     final cursorLine = _cursorLine;
     if (cursorLine >= effectFirstLine && cursorLine <= effectLastLine) {

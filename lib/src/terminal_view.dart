@@ -52,6 +52,7 @@ class TerminalView extends StatefulWidget {
     this.hardwareKeyboardOnly = false,
     this.simulateScroll = true,
     this.forceAppScrollMode = false,
+    this.foregroundPainter,
   });
 
   /// The underlying terminal that this widget renders.
@@ -151,6 +152,10 @@ class TerminalView extends StatefulWidget {
 
   /// Route touch scrolling to the remote application even in the main buffer.
   final bool forceAppScrollMode;
+
+  /// Paints over the text, under the cursor and the selection. A function
+  /// that is not `==` the last one repaints the terminal.
+  final TerminalForegroundPainter? foregroundPainter;
 
   @override
   State<TerminalView> createState() => TerminalViewState();
@@ -274,6 +279,7 @@ class TerminalViewState extends State<TerminalView> {
           blinkInterval: widget.blinkInterval,
           onEditableRect: _onEditableRect,
           composingText: _composingText,
+          foregroundPainter: widget.foregroundPainter,
         );
       },
     );
@@ -550,6 +556,7 @@ class _TerminalView extends LeafRenderObjectWidget {
     required this.blinkInterval,
     this.onEditableRect,
     this.composingText,
+    this.foregroundPainter,
   });
 
   final Terminal terminal;
@@ -580,6 +587,8 @@ class _TerminalView extends LeafRenderObjectWidget {
 
   final String? composingText;
 
+  final TerminalForegroundPainter? foregroundPainter;
+
   @override
   RenderTerminal createRenderObject(BuildContext context) {
     return RenderTerminal(
@@ -597,6 +606,7 @@ class _TerminalView extends LeafRenderObjectWidget {
       blinkInterval: blinkInterval,
       onEditableRect: onEditableRect,
       composingText: composingText,
+      foregroundPainter: foregroundPainter,
     );
   }
 
@@ -616,7 +626,8 @@ class _TerminalView extends LeafRenderObjectWidget {
       ..alwaysShowCursor = alwaysShowCursor
       ..blinkInterval = blinkInterval
       ..onEditableRect = onEditableRect
-      ..composingText = composingText;
+      ..composingText = composingText
+      ..foregroundPainter = foregroundPainter;
   }
 }
 

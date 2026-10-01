@@ -1,3 +1,7 @@
+## [0.4.0] - 2026-10-01
+
+* Add `TerminalView.foregroundPainter` for drawing over the text, inside the terminal.
+
 ## [0.3.2] - 2026-09-24
 
 * Fix the return key sending Enter twice on iOS, where one press is reported both as the newline action and as a typed newline.
