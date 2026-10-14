@@ -450,6 +450,82 @@ void main() {
     });
   });
 
+  group('TerminalView selection drag', () {
+    Future<(Terminal, TerminalController, ScrollController, List<bool>)>
+        pumpScrolledTerminal(WidgetTester tester) async {
+      final terminal = Terminal();
+      final controller = TerminalController();
+      final scrollController = ScrollController();
+      final dragEvents = <bool>[];
+      for (var i = 0; i < 200; i++) {
+        terminal.write('line$i\r\n');
+      }
+      await tester.pumpWidget(MaterialApp(
+        home: Align(
+          alignment: Alignment.topLeft,
+          child: SizedBox(
+            width: 300,
+            height: 200,
+            child: TerminalView(
+              terminal,
+              controller: controller,
+              scrollController: scrollController,
+              onSelectionDragChanged: dragEvents.add,
+            ),
+          ),
+        ),
+      ));
+      await tester.pump();
+      return (terminal, controller, scrollController, dragEvents);
+    }
+
+    testWidgets('scrolls up while held at the top edge, keeping its start',
+        (tester) async {
+      final (_, controller, scrollController, dragEvents) =
+          await pumpScrolledTerminal(tester);
+      final origin = tester.getTopLeft(find.byType(TerminalView));
+      final scrolledFrom = scrollController.offset;
+
+      final gesture = await tester.startGesture(origin + const Offset(10, 100));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      final pressed = controller.selection!;
+      expect(dragEvents, [true]);
+
+      await gesture.moveTo(origin + const Offset(10, 2));
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(scrollController.offset, lessThan(scrolledFrom));
+      final selection = controller.selection!.normalized;
+      expect(selection.begin.y, lessThan(pressed.normalized.begin.y));
+      expect(selection.end, pressed.normalized.end);
+
+      await gesture.up();
+      await tester.pump();
+      expect(dragEvents, [true, false]);
+
+      final stoppedAt = scrollController.offset;
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(scrollController.offset, stoppedAt);
+    });
+
+    testWidgets('does not scroll while held away from the edges',
+        (tester) async {
+      final (_, controller, scrollController, _) =
+          await pumpScrolledTerminal(tester);
+      final origin = tester.getTopLeft(find.byType(TerminalView));
+      final scrolledFrom = scrollController.offset;
+
+      final gesture = await tester.startGesture(origin + const Offset(10, 100));
+      await tester.pump(kLongPressTimeout + const Duration(milliseconds: 50));
+      await gesture.moveTo(origin + const Offset(40, 80));
+      await tester.pump(const Duration(milliseconds: 600));
+
+      expect(scrollController.offset, scrolledFrom);
+      expect(controller.selection, isNotNull);
+      await gesture.up();
+    });
+  });
+
   group('TerminalView.onTapUp', () {
     testWidgets('reports the tapped cell', (tester) async {
       final terminal = Terminal();

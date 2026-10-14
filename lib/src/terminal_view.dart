@@ -53,6 +53,7 @@ class TerminalView extends StatefulWidget {
     this.simulateScroll = true,
     this.forceAppScrollMode = false,
     this.foregroundPainter,
+    this.onSelectionDragChanged,
   });
 
   /// The underlying terminal that this widget renders.
@@ -156,6 +157,11 @@ class TerminalView extends StatefulWidget {
   /// Paints over the text, under the cursor and the selection. A function
   /// that is not `==` the last one repaints the terminal.
   final TerminalForegroundPainter? foregroundPainter;
+
+  /// Called with true when a long press or a mouse drag starts selecting
+  /// text, and with false once the pointer lifts. While it is held near the
+  /// top or bottom edge the view scrolls and the selection follows.
+  final ValueChanged<bool>? onSelectionDragChanged;
 
   @override
   State<TerminalView> createState() => TerminalViewState();
@@ -345,6 +351,8 @@ class TerminalViewState extends State<TerminalView> {
     child = TerminalGestureHandler(
       terminalView: this,
       terminalController: _controller,
+      scrollController: _scrollController,
+      onSelectionDragChanged: widget.onSelectionDragChanged,
       onTapUp: _onTapUp,
       onSingleTapUp: _onSingleTapUp,
       onTapDown: _onTapDown,

@@ -1,3 +1,8 @@
+## [0.5.0] - 2026-10-14
+
+* Scroll the view while a long press or mouse drag selection is held near the top or bottom edge; the start of the selection stays on its text.
+* Add `TerminalView.onSelectionDragChanged`, called when a selection drag starts and ends.
+
 ## [0.4.0] - 2026-10-01
 
 * Add `TerminalView.foregroundPainter` for drawing over the text, inside the terminal.
