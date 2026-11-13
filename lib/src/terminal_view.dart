@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:terminal_view/src/core/buffer/cell_offset.dart';
@@ -360,10 +360,7 @@ class TerminalViewState extends State<TerminalView> {
       child: child,
     );
 
-    child = KeyboardVisibilty(
-      onKeyboardShow: _onKeyboardShow,
-      child: child,
-    );
+    child = KeyboardVisibilty(onKeyboardShow: _onKeyboardShow, child: child);
 
     child = TerminalGestureHandler(
       terminalView: this,
@@ -373,22 +370,22 @@ class TerminalViewState extends State<TerminalView> {
       onTapUp: _onTapUp,
       onSingleTapUp: _onSingleTapUp,
       onTapDown: _onTapDown,
-      onSecondaryTapDown:
-          widget.onSecondaryTapDown != null ? _onSecondaryTapDown : null,
-      onSecondaryTapUp:
-          widget.onSecondaryTapUp != null ? _onSecondaryTapUp : null,
+      onSecondaryTapDown: widget.onSecondaryTapDown != null
+          ? _onSecondaryTapDown
+          : null,
+      onSecondaryTapUp: widget.onSecondaryTapUp != null
+          ? _onSecondaryTapUp
+          : null,
       readOnly: widget.readOnly,
       child: child,
     );
 
-    child = MouseRegion(
-      cursor: widget.mouseCursor,
-      child: child,
-    );
+    child = MouseRegion(cursor: widget.mouseCursor, child: child);
 
     child = Container(
-      color:
-          widget.theme.background.withValues(alpha: widget.backgroundOpacity),
+      color: widget.theme.background.withValues(
+        alpha: widget.backgroundOpacity,
+      ),
       padding: widget.padding,
       child: child,
     );

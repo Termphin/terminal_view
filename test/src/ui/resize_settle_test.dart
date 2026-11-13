@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/terminal_view.dart';
 
@@ -30,10 +30,8 @@ void main() {
           alignment: Alignment.topLeft,
           child: ValueListenableBuilder<Size>(
             valueListenable: box,
-            builder: (context, size, child) => SizedBox.fromSize(
-              size: size,
-              child: child,
-            ),
+            builder: (context, size, child) =>
+                SizedBox.fromSize(size: size, child: child),
             child: TerminalView(
               terminal,
               key: viewKey,
@@ -65,8 +63,7 @@ void main() {
     await tester.pump();
   }
 
-  testWidgets(
-      'a height that keeps moving resizes the terminal once, to '
+  testWidgets('a height that keeps moving resizes the terminal once, to '
       'where it stopped', (tester) async {
     await mount(tester);
     final rows = terminal.viewHeight;
@@ -129,8 +126,7 @@ void main() {
     expect(resizes, hasLength(1));
   });
 
-  testWidgets(
-      'a prompt at the top of the screen stays put while the height '
+  testWidgets('a prompt at the top of the screen stays put while the height '
       'shrinks over empty rows', (tester) async {
     await mount(tester);
     terminal.write('prompt \$ ');
@@ -144,8 +140,7 @@ void main() {
     expect(terminal.buffer.cursorY, 0);
   });
 
-  testWidgets(
-      'a cursor on the last row is kept in view while the height '
+  testWidgets('a cursor on the last row is kept in view while the height '
       'shrinks, and the rows do not jump when the resize lands', (
     tester,
   ) async {

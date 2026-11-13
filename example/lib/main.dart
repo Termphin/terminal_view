@@ -2,7 +2,7 @@
 // shell that runs in Dart. Swap _Shell for a PTY or an SSH channel and the
 // rest of this file stays the same.
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:terminal_view/terminal_view.dart';
 
 void main() => runApp(const DemoApp());

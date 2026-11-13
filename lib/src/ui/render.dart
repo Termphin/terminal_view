@@ -38,44 +38,32 @@ typedef TerminalForegroundPainter = void Function(
 
 class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   RenderTerminal({
-    required Terminal terminal,
-    required TerminalController controller,
-    required ViewportOffset offset,
-    required EdgeInsets padding,
-    required bool autoResize,
+    required this._terminal,
+    required this._controller,
+    required this._offset,
+    required this._padding,
+    required this._autoResize,
     required TerminalStyle textStyle,
     required TextScaler textScaler,
     required TerminalTheme theme,
-    required FocusNode focusNode,
-    required TerminalCursorType cursorType,
-    required bool alwaysShowCursor,
-    Duration? blinkInterval,
-    Duration resizeSettleDelay = Duration.zero,
+    required this._focusNode,
+    required this._cursorType,
+    required this._alwaysShowCursor,
+    this._blinkInterval,
+    this._resizeSettleDelay = Duration.zero,
     bool glyphAtlas = false,
     double devicePixelRatio = 1,
-    EditableRectCallback? onEditableRect,
-    String? composingText,
-    TerminalForegroundPainter? foregroundPainter,
-  })  : _blinkInterval = blinkInterval,
-        _resizeSettleDelay = resizeSettleDelay,
-        _terminal = terminal,
-        _controller = controller,
-        _offset = offset,
-        _padding = padding,
-        _autoResize = autoResize,
-        _focusNode = focusNode,
-        _cursorType = cursorType,
-        _alwaysShowCursor = alwaysShowCursor,
-        _onEditableRect = onEditableRect,
-        _composingText = composingText,
-        _foregroundPainter = foregroundPainter,
-        _painter = TerminalPainter(
-          theme: theme,
-          textStyle: textStyle,
-          textScaler: textScaler,
-        )
-          ..glyphAtlas = glyphAtlas
-          ..devicePixelRatio = devicePixelRatio;
+    this._onEditableRect,
+    this._composingText,
+    this._foregroundPainter,
+  }) : _painter =
+           TerminalPainter(
+               theme: theme,
+               textStyle: textStyle,
+               textScaler: textScaler,
+             )
+             ..glyphAtlas = glyphAtlas
+             ..devicePixelRatio = devicePixelRatio;
 
   /// See [TerminalPainter.glyphAtlas].
   set glyphAtlas(bool value) {
@@ -482,7 +470,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       var toPosition = getCellOffset(to);
       // Range end is exclusive: push whichever end comes last one cell forward
       // so the cell under the pointer stays selected in either drag direction.
-      final backwards = toPosition.y < fromPosition.y ||
+      final backwards =
+          toPosition.y < fromPosition.y ||
           (toPosition.y == fromPosition.y && toPosition.x < fromPosition.x);
       final basePosition = backwards
           ? CellOffset(fromPosition.x + 1, fromPosition.y)
@@ -664,10 +653,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   /// The offset of the cursor from the top left corner of this render object.
   Offset get cursorOffset {
-    return Offset(
-      _cursorColumn * _painter.cellSize.width,
-      _rowY(_cursorLine),
-    );
+    return Offset(_cursorColumn * _painter.cellSize.width, _rowY(_cursorLine));
   }
 
   /// Where the cursor is drawn: the overlay's position when it has one on
@@ -728,11 +714,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _painter.blinkVisible = _blinkVisible;
 
     for (var i = effectFirstLine; i <= effectLastLine; i++) {
-      _painter.paintLine(
-        canvas,
-        offset.translate(0, _rowY(i)),
-        lines[i],
-      );
+      _painter.paintLine(canvas, offset.translate(0, _rowY(i)), lines[i]);
     }
 
     final overlay = _terminal.overlay;
@@ -817,9 +799,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       _painter.cellSize.height,
       PlaceholderAlignment.middle,
     );
-    builder.pushStyle(
-      style.getTextStyle(textScaler: _painter.textScaler),
-    );
+    builder.pushStyle(style.getTextStyle(textScaler: _painter.textScaler));
     builder.addText(composingText);
 
     final paragraph = builder.build();

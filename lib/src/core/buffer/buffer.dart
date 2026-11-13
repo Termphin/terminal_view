@@ -613,8 +613,10 @@ class Buffer {
     // 2. Adjust the width.
     if (newWidth != oldWidth) {
       if (terminal.reflowEnabled && !isAltBuffer) {
-        final cursorLine = (max(lines.length - newHeight, 0) + _cursorY)
-            .clamp(0, lines.length - 1);
+        final cursorLine = (max(lines.length - newHeight, 0) + _cursorY).clamp(
+          0,
+          lines.length - 1,
+        );
 
         final anchor = createAnchor(
           _cursorX.clamp(0, lines[cursorLine].length),

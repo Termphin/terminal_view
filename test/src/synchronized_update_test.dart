@@ -25,63 +25,54 @@ void main() {
       expect(notifyCount, 0);
     });
 
-    test(
-      'with the mode on and nothing further written, the listener is notified once the deadline passes',
-      () async {
-        final terminal = Terminal();
-        var notifyCount = 0;
-        terminal.addListener(() => notifyCount++);
+    test('with the mode on and nothing further written, the listener is notified once the deadline passes', () async {
+      final terminal = Terminal();
+      var notifyCount = 0;
+      terminal.addListener(() => notifyCount++);
 
-        terminal.write('\x1b[?2026h');
-        terminal.write('partial frame');
-        expect(notifyCount, 0);
+      terminal.write('\x1b[?2026h');
+      terminal.write('partial frame');
+      expect(notifyCount, 0);
 
-        await Future<void>.delayed(const Duration(milliseconds: 250));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
 
-        expect(notifyCount, 1);
-      },
-    );
+      expect(notifyCount, 1);
+    });
 
-    test(
-      'turning the mode off cancels the pending timer: no second, late notification arrives after explicit flush',
-      () async {
-        final terminal = Terminal();
-        var notifyCount = 0;
-        terminal.addListener(() => notifyCount++);
+    test('turning the mode off cancels the pending timer: no second, late notification arrives after explicit flush', () async {
+      final terminal = Terminal();
+      var notifyCount = 0;
+      terminal.addListener(() => notifyCount++);
 
-        terminal.write('\x1b[?2026h');
-        terminal.write('hello');
-        expect(notifyCount, 0);
+      terminal.write('\x1b[?2026h');
+      terminal.write('hello');
+      expect(notifyCount, 0);
 
-        terminal.write('\x1b[?2026l');
-        expect(notifyCount, 1);
+      terminal.write('\x1b[?2026l');
+      expect(notifyCount, 1);
 
-        await Future<void>.delayed(const Duration(milliseconds: 250));
+      await Future<void>.delayed(const Duration(milliseconds: 250));
 
-        expect(notifyCount, 1);
-      },
-    );
+      expect(notifyCount, 1);
+    });
 
-    test(
-      're-entering the mode while a timer is pending does not leave two timers running',
-      () async {
-        final terminal = Terminal();
-        var notifyCount = 0;
-        terminal.addListener(() => notifyCount++);
+    test('re-entering the mode while a timer is pending does not leave two timers running', () async {
+      final terminal = Terminal();
+      var notifyCount = 0;
+      terminal.addListener(() => notifyCount++);
 
-        terminal.write('\x1b[?2026h');
-        terminal.write('frame 1');
-        terminal.write('\x1b[?2026h');
-        terminal.write('frame 2');
-        expect(notifyCount, 0);
+      terminal.write('\x1b[?2026h');
+      terminal.write('frame 1');
+      terminal.write('\x1b[?2026h');
+      terminal.write('frame 2');
+      expect(notifyCount, 0);
 
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-        expect(notifyCount, 1);
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(notifyCount, 1);
 
-        await Future<void>.delayed(const Duration(milliseconds: 250));
-        expect(notifyCount, 1);
-      },
-    );
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      expect(notifyCount, 1);
+    });
 
     test('disposing the terminal cancels the pending timer', () async {
       final terminal = Terminal();

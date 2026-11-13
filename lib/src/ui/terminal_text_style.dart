@@ -45,7 +45,8 @@ class TerminalStyle {
     return TerminalStyle(
       fontSize: textStyle.fontSize ?? _kDefaultFontSize,
       height: textStyle.height ?? _kDefaultHeight,
-      fontFamily: textStyle.fontFamily ??
+      fontFamily:
+          textStyle.fontFamily ??
           textStyle.fontFamilyFallback?.first ??
           _kDefaultFontFamily,
       fontFamilyFallback:
@@ -145,10 +146,10 @@ class TerminalStyle {
 
   @override
   int get hashCode => Object.hash(
-        fontSize,
-        height,
-        fontFamily,
-        Object.hashAll(fontFamilyFallback),
-        Object.hashAll(fontFeatures),
-      );
+    fontSize,
+    height,
+    fontFamily,
+    Object.hashAll(fontFamilyFallback),
+    Object.hashAll(fontFeatures),
+  );
 }

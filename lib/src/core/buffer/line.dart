@@ -18,10 +18,8 @@ const _cellAttributes = 2;
 const _cellContent = 3;
 
 class BufferLine with IndexedItem {
-  BufferLine(
-    this._length, {
-    this.isWrapped = false,
-  }) : _data = Uint32List(_calcCapacity(_length) * _cellSize);
+  BufferLine(this._length, {this.isWrapped = false})
+    : _data = Uint32List(_calcCapacity(_length) * _cellSize);
 
   int _length;
 
@@ -419,9 +417,7 @@ class BufferLine with IndexedItem {
 /// of the cell. Anchors are guaranteed to be stable, retaining their relative
 /// position to each other after mutations to the buffer.
 class CellAnchor {
-  CellAnchor(int offset, {BufferLine? owner})
-      : _offset = offset,
-        _owner = owner;
+  CellAnchor(int offset, {this._owner}) : _offset = offset;
 
   int _offset;
 

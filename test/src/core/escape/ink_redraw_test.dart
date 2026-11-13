@@ -46,10 +46,7 @@ void main() {
       terminal.write('\r');
       terminal.write('a\x1b[3Cb');
 
-      expect(
-        _screen(terminal).first,
-        'a───b${'─' * 35}',
-      );
+      expect(_screen(terminal).first, 'a───b${'─' * 35}');
     });
 
     test('CSI K with no parameter erases to the end of the line', () {
@@ -94,21 +91,23 @@ void main() {
       expect(terminal.buffer.cursorY, 1);
     });
 
-    test('scrolling at the bottom keeps cursor up relative to the viewport',
-        () {
-      final terminal = Terminal()..resize(10, 3);
+    test(
+      'scrolling at the bottom keeps cursor up relative to the viewport',
+      () {
+        final terminal = Terminal()..resize(10, 3);
 
-      terminal.write('\x1b[H');
-      terminal.write('one\r\ntwo\r\nthree\r\nfour');
+        terminal.write('\x1b[H');
+        terminal.write('one\r\ntwo\r\nthree\r\nfour');
 
-      expect(_screen(terminal), ['two', 'three', 'four']);
-      expect(terminal.buffer.cursorY, 2);
+        expect(_screen(terminal), ['two', 'three', 'four']);
+        expect(terminal.buffer.cursorY, 2);
 
-      terminal.write('\x1b[2A\r\x1b[J');
-      terminal.write('TWO');
+        terminal.write('\x1b[2A\r\x1b[J');
+        terminal.write('TWO');
 
-      expect(_screen(terminal), ['TWO', '', '']);
-    });
+        expect(_screen(terminal), ['TWO', '', '']);
+      },
+    );
 
     test('erasing a line clears the whole width, not the trimmed length', () {
       final terminal = Terminal()..resize(20, 5);

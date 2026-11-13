@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/terminal_view.dart';
@@ -84,26 +84,20 @@ void main() {
     return count;
   }
 
-  testWidgets(
-      'stamped glyphs put the same pixels on the screen as text laid '
+  testWidgets('stamped glyphs put the same pixels on the screen as text laid '
       'out', (tester) async {
     final laidOut = await render(
       tester,
       glyphAtlas: false,
       devicePixelRatio: 3,
     );
-    final stamped = await render(
-      tester,
-      glyphAtlas: true,
-      devicePixelRatio: 3,
-    );
+    final stamped = await render(tester, glyphAtlas: true, devicePixelRatio: 3);
 
     expect(lit(laidOut), greaterThan(5000), reason: 'nothing was drawn');
     expect(differing(laidOut, stamped), lessThan(0.004));
   });
 
-  testWidgets(
-      'and stay within a pixel of it where a pixel is not a whole '
+  testWidgets('and stay within a pixel of it where a pixel is not a whole '
       'number of logical ones', (tester) async {
     final laidOut = await render(
       tester,
@@ -120,8 +114,7 @@ void main() {
     expect(lit(stamped), closeTo(lit(laidOut), lit(laidOut) * 0.05));
   });
 
-  testWidgets(
-      'switching a view that is already showing lines redraws them the '
+  testWidgets('switching a view that is already showing lines redraws them the '
       'other way, both ways', (tester) async {
     tester.view
       ..devicePixelRatio = 3
@@ -175,8 +168,7 @@ void main() {
     expect(differing(stamped, stampedAgain), 0);
   });
 
-  testWidgets(
-      'a line that held still is replayed from its recording and '
+  testWidgets('a line that held still is replayed from its recording and '
       'still reads the same', (tester) async {
     tester.view
       ..devicePixelRatio = 3

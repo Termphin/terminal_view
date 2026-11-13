@@ -107,12 +107,10 @@ class SuggestionLayout extends SingleChildRenderObjectWidget {
 class RenderCompletionLayout extends RenderShiftedBox {
   RenderCompletionLayout(
     super.child, {
-    required ValueListenable<Rect> cursorRect,
-    required EdgeInsets padding,
+    required this._cursorRect,
+    required this._padding,
     required EdgeInsets cursorMargin,
-  })  : _cursorRect = cursorRect,
-        _padding = padding,
-        _cursorPadding = cursorMargin;
+  }) : _cursorPadding = cursorMargin;
 
   ValueListenable<Rect> _cursorRect;
   ValueListenable<Rect> get cursorRect => _cursorRect;
@@ -167,7 +165,8 @@ class RenderCompletionLayout extends RenderShiftedBox {
     final spaceAbove = cursorRect.value.top - padding.top - cursorMargin.top;
 
     // space available for the completion overlay below the cursor
-    final spaceBelow = size.height -
+    final spaceBelow =
+        size.height -
         cursorRect.value.bottom -
         padding.bottom -
         cursorMargin.bottom;
@@ -186,10 +185,7 @@ class RenderCompletionLayout extends RenderShiftedBox {
 
     final childParentData = child.parentData as BoxParentData;
     childParentData.offset = Offset(
-      min(
-        size.width - padding.right - child.size.width,
-        cursorRect.value.left,
-      ),
+      min(size.width - padding.right - child.size.width, cursorRect.value.left),
       // Showing the completion overlay below the cursor is preferred, unless
       // there's insufficient space for it.
       fitsBelow

@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 import 'dart:ui';
+
 import 'package:flutter/painting.dart';
 
 import 'package:terminal_view/src/ui/glyph_atlas.dart';
@@ -19,12 +20,10 @@ const _kBatchableEnd = 0x7f;
 /// Encapsulates the logic for painting various terminal elements.
 class TerminalPainter {
   TerminalPainter({
-    required TerminalTheme theme,
-    required TerminalStyle textStyle,
-    required TextScaler textScaler,
-  })  : _textStyle = textStyle,
-        _theme = theme,
-        _textScaler = textScaler;
+    required this._theme,
+    required this._textStyle,
+    required this._textScaler,
+  });
 
   /// A lookup table from terminal colors to Flutter colors.
   late var _colorPalette = PaletteBuilder(_theme).build();
@@ -130,9 +129,7 @@ class TerminalPainter {
         textScaler: _textScaler,
       ),
     );
-    builder.pushStyle(
-      textStyle.getTextStyle(textScaler: _textScaler),
-    );
+    builder.pushStyle(textStyle.getTextStyle(textScaler: _textScaler));
     builder.addText(test);
 
     final paragraph = builder.build();
@@ -184,10 +181,7 @@ class TerminalPainter {
       case TerminalCursorType.underline:
         return canvas.drawLine(
           Offset(offset.dx, offset.dy + _cellSize.height - 1),
-          Offset(
-            offset.dx + _cellSize.width,
-            offset.dy + _cellSize.height - 1,
-          ),
+          Offset(offset.dx + _cellSize.width, offset.dy + _cellSize.height - 1),
           paint,
         );
       case TerminalCursorType.verticalBar:
@@ -201,24 +195,19 @@ class TerminalPainter {
 
   @pragma('vm:prefer-inline')
   void paintHighlight(Canvas canvas, Offset offset, int length, Color color) {
-    final endOffset =
-        offset.translate(length * _cellSize.width, _cellSize.height);
+    final endOffset = offset.translate(
+      length * _cellSize.width,
+      _cellSize.height,
+    );
 
     _fillPaint.color = color;
 
-    canvas.drawRect(
-      Rect.fromPoints(offset, endOffset),
-      _fillPaint,
-    );
+    canvas.drawRect(Rect.fromPoints(offset, endOffset), _fillPaint);
   }
 
   /// Paints [line] to [canvas] at [offset]. The x offset of [offset] is usually
   /// 0, and the y offset is the top of the line.
-  void paintLine(
-    Canvas canvas,
-    Offset offset,
-    BufferLine line,
-  ) {
+  void paintLine(Canvas canvas, Offset offset, BufferLine line) {
     final version = line.version;
     final entry = _lineCache.get(line);
 
@@ -448,10 +437,11 @@ class TerminalPainter {
       devicePixelRatio: _devicePixelRatio,
     );
     final bold = flags & CellFlags.bold != 0;
-    final batch = _batches[GlyphAtlas.styleOf(
-      bold: bold,
-      italic: flags & CellFlags.italic != 0,
-    )];
+    final batch =
+        _batches[GlyphAtlas.styleOf(
+          bold: bold,
+          italic: flags & CellFlags.italic != 0,
+        )];
     final color = _resolveRunColor(
       overrideColor: null,
       foreground: foreground,
@@ -517,8 +507,13 @@ class TerminalPainter {
     final bold = flags & CellFlags.bold != 0;
     final decoration = _decorationFor(flags);
     final colorBits = overrideColor?.toARGB32() ?? 0;
-    final styleKey =
-        hashValues(foreground, background, flags, _textScaler, colorBits);
+    final styleKey = hashValues(
+      foreground,
+      background,
+      flags,
+      _textScaler,
+      colorBits,
+    );
 
     var key = styleKey;
     for (var i = 0; i < length; i++) {
@@ -640,8 +635,8 @@ class TerminalPainter {
   /// pages, `ls` colours, hyperlinks - says the same thing with colour too.
   TextDecoration _decorationFor(int flags) =>
       flags & CellFlags.strikethrough != 0
-          ? TextDecoration.lineThrough
-          : TextDecoration.none;
+      ? TextDecoration.lineThrough
+      : TextDecoration.none;
 
   double _contrastRatio(Color a, Color b) {
     final la = a.computeLuminance();
@@ -655,8 +650,9 @@ class TerminalPainter {
     if (_contrastRatio(fg, bg) >= minRatio) return fg;
 
     final towardsWhite = bg.computeLuminance() < 0.5;
-    final extreme =
-        towardsWhite ? const Color(0xFFFFFFFF) : const Color(0xFF000000);
+    final extreme = towardsWhite
+        ? const Color(0xFFFFFFFF)
+        : const Color(0xFF000000);
 
     if (_contrastRatio(extreme, bg) < minRatio) return extreme;
 

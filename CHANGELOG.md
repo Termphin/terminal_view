@@ -3,6 +3,7 @@
 * Add `TerminalView.glyphAtlas`: printable ASCII is drawn from an image of the font's glyphs, one draw a line, instead of a paragraph per run. Off by default.
 * Add `TerminalView.resizeSettleDelay`: the terminal is resized once the view's height has come to rest, not on every frame of a keyboard animation.
 * Cheaper frames: the cursor blink timer is no longer recreated on every change, and scrolling and selection repaint instead of laying out.
+* Uses the standalone `material_ui` and `cupertino_ui` packages instead of the framework's Material and Cupertino libraries. Needs Flutter 3.47 or later.
 
 ## [0.5.0] - 2026-10-14
 

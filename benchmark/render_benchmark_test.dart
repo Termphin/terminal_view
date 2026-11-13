@@ -11,7 +11,7 @@ library;
 import 'dart:io';
 import 'dart:math';
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/terminal_view.dart';
 
@@ -37,41 +37,59 @@ void main() {
     stdout.writeln(out);
   });
 
-  _scenario('idle, cursor blinking', frame: (bench, i) {
-    bench.terminal.notifyListeners();
-  });
+  _scenario(
+    'idle, cursor blinking',
+    frame: (bench, i) {
+      bench.terminal.notifyListeners();
+    },
+  );
 
-  _scenario('one line redrawn (spinner)', frame: (bench, i) {
-    const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
-    bench.terminal.write(
-      '\r\x1b[2K\x1b[38;5;208m${frames[i % 10]}\x1b[39m Thinking… '
-      '(${i ~/ 10}s · esc to interrupt)',
-    );
-  });
+  _scenario(
+    'one line redrawn (spinner)',
+    frame: (bench, i) {
+      const frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
+      bench.terminal.write(
+        '\r\x1b[2K\x1b[38;5;208m${frames[i % 10]}\x1b[39m Thinking… '
+        '(${i ~/ 10}s · esc to interrupt)',
+      );
+    },
+  );
 
-  _scenario('two new lines a frame (streaming)', frame: (bench, i) {
-    bench.terminal.write('${_prose(i * 2)}\r\n${_prose(i * 2 + 1)}\r\n');
-  });
+  _scenario(
+    'two new lines a frame (streaming)',
+    frame: (bench, i) {
+      bench.terminal.write('${_prose(i * 2)}\r\n${_prose(i * 2 + 1)}\r\n');
+    },
+  );
 
-  _scenario('whole screen rewritten', frame: (bench, i) {
-    final frame = StringBuffer('\x1b[H');
-    for (var row = 0; row < _rows - 1; row++) {
-      frame.write('\x1b[2K${_prose(i * 7 + row)}\r\n');
-    }
-    bench.terminal.write(frame.toString());
-  });
+  _scenario(
+    'whole screen rewritten',
+    frame: (bench, i) {
+      final frame = StringBuffer('\x1b[H');
+      for (var row = 0; row < _rows - 1; row++) {
+        frame.write('\x1b[2K${_prose(i * 7 + row)}\r\n');
+      }
+      bench.terminal.write(frame.toString());
+    },
+  );
 
-  _scenario('scrolling back through history', frame: (bench, i) {
-    final position = bench.scroll.position;
-    final target = position.maxScrollExtent - (i + 1) * 37.0;
-    bench.scroll.jumpTo(target.clamp(0, position.maxScrollExtent));
-  });
+  _scenario(
+    'scrolling back through history',
+    frame: (bench, i) {
+      final position = bench.scroll.position;
+      final target = position.maxScrollExtent - (i + 1) * 37.0;
+      bench.scroll.jumpTo(target.clamp(0, position.maxScrollExtent));
+    },
+  );
 
-  _scenario('keyboard sliding in and out', frame: (bench, i) {
-    final phase = i % 40;
-    final travel = phase < 20 ? phase : 40 - phase;
-    bench.height.value = 800 - travel * 16.0;
-  });
+  _scenario(
+    'keyboard sliding in and out',
+    frame: (bench, i) {
+      final phase = i % 40;
+      final travel = phase < 20 ? phase : 40 - phase;
+      bench.height.value = 800 - travel * 16.0;
+    },
+  );
 }
 
 void _scenario(
@@ -199,8 +217,10 @@ String _prose(int seed) {
     if (width + word.length + 1 >= _columns) break;
     final styled = random.nextInt(3) == 0;
     if (styled) {
-      line.write('\x1b[${random.nextBool() ? '1;' : ''}38;5;'
-          '${random.nextInt(200) + 20}m');
+      line.write(
+        '\x1b[${random.nextBool() ? '1;' : ''}38;5;'
+        '${random.nextInt(200) + 20}m',
+      );
     }
     line.write(word);
     if (styled) line.write('\x1b[0m');

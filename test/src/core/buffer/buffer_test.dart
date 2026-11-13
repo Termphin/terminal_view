@@ -85,8 +85,7 @@ void main() {
   });
 
   group('Buffer.resize()', () {
-    test(
-        'a wider terminal can be written to its last column once the '
+    test('a wider terminal can be written to its last column once the '
         'scrollback has wrapped around', () {
       final terminal = Terminal(maxLines: 50);
       terminal.resize(64, 10);
@@ -103,23 +102,25 @@ void main() {
       expect(terminal.buffer.lines.length, lessThanOrEqualTo(50));
     });
 
-    test('keeps line order through a reflow after the scrollback was cleared',
-        () {
-      final terminal = Terminal();
-      terminal.resize(64, 5);
-      for (var i = 0; i < 12; i++) {
-        terminal.write('line $i\r\n');
-      }
-      terminal.write('\x1b[3J');
+    test(
+      'keeps line order through a reflow after the scrollback was cleared',
+      () {
+        final terminal = Terminal();
+        terminal.resize(64, 5);
+        for (var i = 0; i < 12; i++) {
+          terminal.write('line $i\r\n');
+        }
+        terminal.write('\x1b[3J');
 
-      terminal.resize(100, 5);
+        terminal.resize(100, 5);
 
-      final text = [
-        for (var i = 0; i < terminal.buffer.lines.length; i++)
-          terminal.buffer.lines[i].getText().trim(),
-      ].where((line) => line.isNotEmpty).toList();
-      expect(text, ['line 8', 'line 9', 'line 10', 'line 11']);
-    });
+        final text = [
+          for (var i = 0; i < terminal.buffer.lines.length; i++)
+            terminal.buffer.lines[i].getText().trim(),
+        ].where((line) => line.isNotEmpty).toList();
+        expect(text, ['line 8', 'line 9', 'line 10', 'line 11']);
+      },
+    );
     test('leaves the alt buffer lines where selection expects them', () {
       final terminal = Terminal();
       terminal.resize(80, 40);
@@ -134,7 +135,9 @@ void main() {
       final line = terminal.buffer.lines[5];
       expect(line.index, 5);
       expect(
-          terminal.buffer.createAnchorFromOffset(const CellOffset(0, 5)).y, 5);
+        terminal.buffer.createAnchorFromOffset(const CellOffset(0, 5)).y,
+        5,
+      );
     });
 
     test('clearing the scrollback keeps line indexes', () {
@@ -354,15 +357,10 @@ void main() {
     test('a zero width joiner sequence is kept on the base character', () {
       final terminal = Terminal();
       terminal.resize(10, 3);
-      terminal.write(
-        '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}x',
-      );
+      terminal.write('\u{1F468}\u200D\u{1F469}\u200D\u{1F467}x');
 
       final line = terminal.buffer.lines[0];
-      expect(
-        line.getCombined(0),
-        '\u200D\u{1F469}\u200D\u{1F467}',
-      );
+      expect(line.getCombined(0), '\u200D\u{1F469}\u200D\u{1F467}');
       expect(line.getCodePoint(2), 'x'.codeUnitAt(0));
       expect(terminal.buffer.cursorX, 3);
     });
