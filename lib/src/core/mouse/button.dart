@@ -11,8 +11,7 @@ enum TerminalMouseButton {
 
   wheelLeft(id: 64 + 2, isWheel: true),
 
-  wheelRight(id: 64 + 3, isWheel: true),
-  ;
+  wheelRight(id: 64 + 3, isWheel: true);
 
   /// The id that is used to report a button press or release to the terminal.
   ///

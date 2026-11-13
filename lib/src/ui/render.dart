@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:math' show max;
+import 'dart:math' show max, min;
 import 'dart:ui';
 
 import 'package:flutter/rendering.dart';
@@ -38,38 +38,45 @@ typedef TerminalForegroundPainter = void Function(
 
 class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
   RenderTerminal({
-    required Terminal terminal,
-    required TerminalController controller,
-    required ViewportOffset offset,
-    required EdgeInsets padding,
-    required bool autoResize,
+    required this._terminal,
+    required this._controller,
+    required this._offset,
+    required this._padding,
+    required this._autoResize,
     required TerminalStyle textStyle,
     required TextScaler textScaler,
     required TerminalTheme theme,
-    required FocusNode focusNode,
-    required TerminalCursorType cursorType,
-    required bool alwaysShowCursor,
-    Duration? blinkInterval,
-    EditableRectCallback? onEditableRect,
-    String? composingText,
-    TerminalForegroundPainter? foregroundPainter,
-  })  : _blinkInterval = blinkInterval,
-        _terminal = terminal,
-        _controller = controller,
-        _offset = offset,
-        _padding = padding,
-        _autoResize = autoResize,
-        _focusNode = focusNode,
-        _cursorType = cursorType,
-        _alwaysShowCursor = alwaysShowCursor,
-        _onEditableRect = onEditableRect,
-        _composingText = composingText,
-        _foregroundPainter = foregroundPainter,
-        _painter = TerminalPainter(
-          theme: theme,
-          textStyle: textStyle,
-          textScaler: textScaler,
-        );
+    required this._focusNode,
+    required this._cursorType,
+    required this._alwaysShowCursor,
+    this._blinkInterval,
+    this._resizeSettleDelay = Duration.zero,
+    bool glyphAtlas = false,
+    double devicePixelRatio = 1,
+    this._onEditableRect,
+    this._composingText,
+    this._foregroundPainter,
+  }) : _painter =
+           TerminalPainter(
+               theme: theme,
+               textStyle: textStyle,
+               textScaler: textScaler,
+             )
+             ..glyphAtlas = glyphAtlas
+             ..devicePixelRatio = devicePixelRatio;
+
+  /// See [TerminalPainter.glyphAtlas].
+  set glyphAtlas(bool value) {
+    if (value == _painter.glyphAtlas) return;
+    _painter.glyphAtlas = value;
+    markNeedsPaint();
+  }
+
+  set devicePixelRatio(double value) {
+    if (value == _painter.devicePixelRatio) return;
+    _painter.devicePixelRatio = value;
+    markNeedsPaint();
+  }
 
   Terminal _terminal;
   set terminal(Terminal terminal) {
@@ -192,18 +199,60 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     }
 
     _blinkVisible = true;
+    _blinkHeld = false;
     _blinkTimer = Timer.periodic(interval, (_) {
+      if (_blinkHeld) {
+        _blinkHeld = false;
+        return;
+      }
       _blinkVisible = !_blinkVisible;
       markNeedsPaint();
     });
   }
 
-  /// Shows the cursor and restarts the blink phase, so it stays solid while
-  /// output is arriving instead of flickering away mid-keystroke.
+  /// Set by output arriving, cleared by the next tick, which it makes skip
+  /// its turn.
+  var _blinkHeld = false;
+
+  /// Shows the cursor and holds it through the next tick, so it stays solid
+  /// while output is arriving instead of flickering away mid-keystroke.
+  ///
+  /// The timer is left running: this is called for every chunk of output,
+  /// and cancelling and creating a timer each time was most of what an idle
+  /// change cost.
   void _resetBlinkPhase() {
     if (_blinkTimer == null) return;
-    if (!_blinkVisible) markNeedsPaint();
-    _restartBlink();
+    _blinkHeld = true;
+    if (_blinkVisible) return;
+    _blinkVisible = true;
+    markNeedsPaint();
+  }
+
+  /// How long the viewport has to hold a height before the terminal is
+  /// resized to it. Zero resizes at once.
+  ///
+  /// A soft keyboard changes the height on every frame of its animation.
+  /// Resizing the grid each time means two buffers resized per frame, on the
+  /// alternate screen rows dropped for good at every step, and a program on
+  /// the far end told about sizes that last eight milliseconds. With a delay
+  /// the grid is left alone while the height moves - the viewport is simply a
+  /// shorter window on the same rows, kept on the last ones - and resized
+  /// once, to where it came to rest. A change of width is never held back:
+  /// the lines have to be re-wrapped to be shown at all.
+  Duration _resizeSettleDelay;
+  set resizeSettleDelay(Duration value) {
+    if (value == _resizeSettleDelay) return;
+    _resizeSettleDelay = value;
+    if (value == Duration.zero && _resizeTimer != null) _settleResize();
+  }
+
+  Timer? _resizeTimer;
+
+  void _settleResize() {
+    _resizeTimer?.cancel();
+    _resizeTimer = null;
+    if (!attached) return;
+    markNeedsLayout();
   }
 
   EditableRectCallback? _onEditableRect;
@@ -232,9 +281,11 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   var _stickToBottom = true;
 
+  /// A repaint, not a layout: nothing a layout works out depends on where
+  /// the view is scrolled to, and this runs for every pixel of a fling.
   void _onScroll() {
-    _stickToBottom = _scrollOffset >= _maxScrollExtent;
-    markNeedsLayout();
+    _stickToBottom = _scrollOffset >= _restingScrollOffset;
+    markNeedsPaint();
     _notifyEditableRect();
   }
 
@@ -261,8 +312,10 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   var _lastLineCount = -1;
 
+  /// Selection and highlights are painted over the text, at cells - they
+  /// move nothing.
   void _onControllerUpdate() {
-    markNeedsLayout();
+    markNeedsPaint();
   }
 
   @override
@@ -287,12 +340,20 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _focusNode.removeListener(_onFocusChange);
     _blinkTimer?.cancel();
     _blinkTimer = null;
+    _resizeTimer?.cancel();
+    _resizeTimer = null;
+    _editableRectTimer?.cancel();
+    _editableRectTimer = null;
   }
 
   @override
   void dispose() {
     _blinkTimer?.cancel();
     _blinkTimer = null;
+    _resizeTimer?.cancel();
+    _resizeTimer = null;
+    _editableRectTimer?.cancel();
+    _editableRectTimer = null;
     _painter.dispose();
     super.dispose();
   }
@@ -317,7 +378,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _updateScrollOffset();
 
     if (_stickToBottom) {
-      _offset.correctBy(_maxScrollExtent - _scrollOffset);
+      _offset.correctBy(_restingScrollOffset - _scrollOffset);
     }
   }
 
@@ -409,7 +470,8 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       var toPosition = getCellOffset(to);
       // Range end is exclusive: push whichever end comes last one cell forward
       // so the cell under the pointer stays selected in either drag direction.
-      final backwards = toPosition.y < fromPosition.y ||
+      final backwards =
+          toPosition.y < fromPosition.y ||
           (toPosition.y == fromPosition.y && toPosition.x < fromPosition.x);
       final basePosition = backwards
           ? CellOffset(fromPosition.x + 1, fromPosition.y)
@@ -434,9 +496,24 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     return _terminal.mouseInput(button, buttonState, position);
   }
 
+  /// Tells the input method where the cursor is, once it has stopped moving.
+  ///
+  /// It moves with every chunk of output, and each report is two messages to
+  /// the platform and a walk up the tree for the global position. Nothing
+  /// reads it that fast: it places the input method's own popups.
   void _notifyEditableRect() {
+    if (_onEditableRect == null) return;
+    _editableRectTimer ??= Timer(_editableRectDelay, _sendEditableRect);
+  }
+
+  static const _editableRectDelay = Duration(milliseconds: 80);
+
+  Timer? _editableRectTimer;
+
+  void _sendEditableRect() {
+    _editableRectTimer = null;
     final callback = _onEditableRect;
-    if (callback == null) return;
+    if (callback == null || !attached || !hasSize) return;
 
     final cursor = localToGlobal(cursorOffset);
 
@@ -468,10 +545,56 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       _viewportHeight ~/ _painter.cellSize.height,
     );
 
-    if (_viewportSize != viewportSize) {
-      _viewportSize = viewportSize;
-      _resizeTerminalIfNeeded();
+    final current = _viewportSize;
+    if (current == viewportSize) {
+      _resizeTimer?.cancel();
+      _resizeTimer = null;
+      _settlingOn = null;
+      return;
     }
+
+    final heightOnly = current != null && current.width == viewportSize.width;
+    if (heightOnly && _resizeSettleDelay > Duration.zero) {
+      if (viewportSize != _settlingOn) {
+        _settlingOn = viewportSize;
+        _resizeTimer?.cancel();
+        _resizeTimer = Timer(_resizeSettleDelay, _settleResize);
+        return;
+      }
+      if (_resizeTimer != null) return;
+    }
+
+    _resizeTimer?.cancel();
+    _resizeTimer = null;
+    _settlingOn = null;
+    _viewportSize = viewportSize;
+    _resizeTerminalIfNeeded();
+  }
+
+  /// The size the viewport was last seen at while a resize is held back. A
+  /// layout that finds it unchanged with the timer gone is the one the timer
+  /// asked for.
+  TerminalSize? _settlingOn;
+
+  /// Where the view rests when it follows the output, which is where
+  /// "scroll to the bottom" has to go: the end, or - while a
+  /// resize is held back - where the resize is going to leave it, so the
+  /// rows do not jump when it lands. Shrinking keeps the top of the screen
+  /// in place and gives way only as far as the cursor needs to stay in view,
+  /// which is what `Buffer.resize` does by dropping the empty rows below it
+  /// first; growing brings rows back from the scrollback.
+  double get restingScrollOffset => _restingScrollOffset;
+
+  double get _restingScrollOffset {
+    final target = _resizeTimer == null ? null : _settlingOn;
+    if (target == null) return _maxScrollExtent;
+
+    final buffer = _terminal.buffer;
+    final rows = target.height;
+    final top = rows < _terminal.viewHeight
+        ? buffer.scrollBack + max(0, buffer.cursorY - (rows - 1))
+        : max(0, buffer.lines.length - rows);
+    return min(top * _painter.cellSize.height, _maxScrollExtent);
   }
 
   /// Notify the underlying terminal that the viewport size has changed.
@@ -530,10 +653,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
 
   /// The offset of the cursor from the top left corner of this render object.
   Offset get cursorOffset {
-    return Offset(
-      _cursorColumn * _painter.cellSize.width,
-      _rowY(_cursorLine),
-    );
+    return Offset(_cursorColumn * _painter.cellSize.width, _rowY(_cursorLine));
   }
 
   /// Where the cursor is drawn: the overlay's position when it has one on
@@ -594,11 +714,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
     _painter.blinkVisible = _blinkVisible;
 
     for (var i = effectFirstLine; i <= effectLastLine; i++) {
-      _painter.paintLine(
-        canvas,
-        offset.translate(0, _rowY(i)),
-        lines[i],
-      );
+      _painter.paintLine(canvas, offset.translate(0, _rowY(i)), lines[i]);
     }
 
     final overlay = _terminal.overlay;
@@ -683,9 +799,7 @@ class RenderTerminal extends RenderBox with RelayoutWhenSystemFontsChangeMixin {
       _painter.cellSize.height,
       PlaceholderAlignment.middle,
     );
-    builder.pushStyle(
-      style.getTextStyle(textScaler: _painter.textScaler),
-    );
+    builder.pushStyle(style.getTextStyle(textScaler: _painter.textScaler));
     builder.addText(composingText);
 
     final paragraph = builder.build();

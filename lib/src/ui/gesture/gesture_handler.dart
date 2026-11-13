@@ -245,7 +245,8 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
     final position = _dragPosition;
     if (anchor == null || position == null) return;
     final cell = renderTerminal.cellSize;
-    final from = renderTerminal.getOffset(anchor) +
+    final from =
+        renderTerminal.getOffset(anchor) +
         Offset(cell.width / 2, cell.height / 2);
     _dragSelectsWords
         ? renderTerminal.selectWord(from, position)
@@ -264,8 +265,8 @@ class _TerminalGestureHandlerState extends State<TerminalGestureHandler> {
     final delta = position.dy < edge
         ? -lineHeight
         : position.dy > height - edge
-            ? lineHeight
-            : 0.0;
+        ? lineHeight
+        : 0.0;
     if (delta == 0) return;
     final scroll = controller.position;
     final target = (scroll.pixels + delta).clamp(

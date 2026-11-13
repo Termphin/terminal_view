@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/terminal_view.dart';
 
@@ -11,9 +11,9 @@ void main() {
       terminal.write('\x1b[?1049h\x1b[?1000h\x1b[?1006h');
 
       Widget app(Color seed) => MaterialApp(
-            theme: ThemeData(colorSchemeSeed: seed),
-            home: Scaffold(body: TerminalView(terminal)),
-          );
+        theme: ThemeData(colorSchemeSeed: seed),
+        home: Scaffold(body: TerminalView(terminal)),
+      );
 
       await tester.pumpWidget(app(Colors.blue));
       await tester.pumpWidget(app(Colors.red));

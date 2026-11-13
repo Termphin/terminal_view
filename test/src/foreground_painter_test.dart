@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/terminal_view.dart';
 
@@ -39,9 +39,11 @@ void main() {
     final render = await pump(
       tester,
       terminal,
-      (canvas, origin, render, first, last) => calls.add(
-        (first, last, origin + render.getOffset(CellOffset(0, first))),
-      ),
+      (canvas, origin, render, first, last) => calls.add((
+        first,
+        last,
+        origin + render.getOffset(CellOffset(0, first)),
+      )),
       scroll: scroll,
     );
 

@@ -180,17 +180,20 @@ void main() {
       expect(t.buffer.lines[t.buffer.scrollBack].toString(), '');
     });
 
-    test('C0 controls inside an unfinished CSI stay ignored (parser design)', () {
-      // xterm executes C0 in place; terminal_view rolls back incomplete
-      // sequences, so executing them would replay the control on every
-      // subsequent write. Asserting the current contract: no corruption.
-      final t = Terminal();
-      t.write('AB');
-      t.write('\x1b[');
-      t.write('\nC');
-      // The LF is swallowed and 'C' completes the sequence as CUF 1.
-      expect(t.buffer.lines[t.buffer.scrollBack].toString(), 'AB');
-      expect(t.buffer.cursorX, 3);
-    });
+    test(
+      'C0 controls inside an unfinished CSI stay ignored (parser design)',
+      () {
+        // xterm executes C0 in place; terminal_view rolls back incomplete
+        // sequences, so executing them would replay the control on every
+        // subsequent write. Asserting the current contract: no corruption.
+        final t = Terminal();
+        t.write('AB');
+        t.write('\x1b[');
+        t.write('\nC');
+        // The LF is swallowed and 'C' completes the sequence as CUF 1.
+        expect(t.buffer.lines[t.buffer.scrollBack].toString(), 'AB');
+        expect(t.buffer.cursorX, 3);
+      },
+    );
   });
 }

@@ -5,10 +5,7 @@ import 'package:terminal_view/src/core/input/keytab/keytab_record.dart';
 import 'package:terminal_view/src/core/input/keytab/keytab_token.dart';
 
 class Keytab {
-  Keytab({
-    required this.name,
-    required this.records,
-  });
+  Keytab({required this.name, required this.records});
 
   factory Keytab.parse(String source) {
     final tokens = tokenize(source).toList();

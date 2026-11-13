@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
+import 'package:cupertino_ui/cupertino_ui.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:terminal_view/src/core/buffer/cell_offset.dart';
@@ -45,6 +45,8 @@ class TerminalView extends StatefulWidget {
     this.cursorType = TerminalCursorType.block,
     this.alwaysShowCursor = false,
     this.blinkInterval,
+    this.resizeSettleDelay = Duration.zero,
+    this.glyphAtlas = false,
     this.deleteDetection = false,
     this.shortcuts,
     this.onKeyEvent,
@@ -123,6 +125,18 @@ class TerminalView extends StatefulWidget {
   /// How fast the cursor blinks, or null to hold it steady. The blink is run
   /// by the render object, so toggling it costs a repaint and nothing else.
   final Duration? blinkInterval;
+
+  /// How long the view has to hold a height before the terminal is resized
+  /// to it; zero, the default, resizes at once. Give it a delay where the
+  /// height animates - a soft keyboard sliding in - so the terminal is
+  /// resized once, to where the height came to rest, and not for every frame
+  /// on the way. A change of width always resizes at once.
+  final Duration resizeSettleDelay;
+
+  /// Whether printable ASCII is stamped from an image of the font's glyphs
+  /// instead of laid out as text, run by run. The same pixels, for less
+  /// work per frame; off by default.
+  final bool glyphAtlas;
 
   /// Workaround to detect delete key for platforms and IMEs that does not
   /// emit hardware delete event. Prefered on mobile platforms. [false] by
@@ -283,6 +297,9 @@ class TerminalViewState extends State<TerminalView> {
           cursorType: widget.cursorType,
           alwaysShowCursor: widget.alwaysShowCursor,
           blinkInterval: widget.blinkInterval,
+          resizeSettleDelay: widget.resizeSettleDelay,
+          glyphAtlas: widget.glyphAtlas,
+          devicePixelRatio: MediaQuery.devicePixelRatioOf(context),
           onEditableRect: _onEditableRect,
           composingText: _composingText,
           foregroundPainter: widget.foregroundPainter,
@@ -343,10 +360,7 @@ class TerminalViewState extends State<TerminalView> {
       child: child,
     );
 
-    child = KeyboardVisibilty(
-      onKeyboardShow: _onKeyboardShow,
-      child: child,
-    );
+    child = KeyboardVisibilty(onKeyboardShow: _onKeyboardShow, child: child);
 
     child = TerminalGestureHandler(
       terminalView: this,
@@ -356,22 +370,22 @@ class TerminalViewState extends State<TerminalView> {
       onTapUp: _onTapUp,
       onSingleTapUp: _onSingleTapUp,
       onTapDown: _onTapDown,
-      onSecondaryTapDown:
-          widget.onSecondaryTapDown != null ? _onSecondaryTapDown : null,
-      onSecondaryTapUp:
-          widget.onSecondaryTapUp != null ? _onSecondaryTapUp : null,
+      onSecondaryTapDown: widget.onSecondaryTapDown != null
+          ? _onSecondaryTapDown
+          : null,
+      onSecondaryTapUp: widget.onSecondaryTapUp != null
+          ? _onSecondaryTapUp
+          : null,
       readOnly: widget.readOnly,
       child: child,
     );
 
-    child = MouseRegion(
-      cursor: widget.mouseCursor,
-      child: child,
-    );
+    child = MouseRegion(cursor: widget.mouseCursor, child: child);
 
     child = Container(
-      color:
-          widget.theme.background.withValues(alpha: widget.backgroundOpacity),
+      color: widget.theme.background.withValues(
+        alpha: widget.backgroundOpacity,
+      ),
       padding: widget.padding,
       child: child,
     );
@@ -539,10 +553,17 @@ class TerminalViewState extends State<TerminalView> {
     _customTextEditKey.currentState?.setEditableRect(rect, caretRect);
   }
 
+  /// Back to where the view rests while it follows the output - the end,
+  /// unless a resize is being held back; see
+  /// [RenderTerminal.restingScrollOffset].
   void _scrollToBottom() {
     final position = _scrollableKey.currentState?.position;
     if (position != null) {
-      position.jumpTo(position.maxScrollExtent);
+      position.jumpTo(
+        _viewportKey.currentContext == null
+            ? position.maxScrollExtent
+            : renderTerminal.restingScrollOffset,
+      );
     }
   }
 }
@@ -562,6 +583,9 @@ class _TerminalView extends LeafRenderObjectWidget {
     required this.cursorType,
     required this.alwaysShowCursor,
     required this.blinkInterval,
+    required this.resizeSettleDelay,
+    required this.glyphAtlas,
+    required this.devicePixelRatio,
     this.onEditableRect,
     this.composingText,
     this.foregroundPainter,
@@ -591,6 +615,12 @@ class _TerminalView extends LeafRenderObjectWidget {
 
   final Duration? blinkInterval;
 
+  final Duration resizeSettleDelay;
+
+  final bool glyphAtlas;
+
+  final double devicePixelRatio;
+
   final EditableRectCallback? onEditableRect;
 
   final String? composingText;
@@ -612,6 +642,9 @@ class _TerminalView extends LeafRenderObjectWidget {
       cursorType: cursorType,
       alwaysShowCursor: alwaysShowCursor,
       blinkInterval: blinkInterval,
+      resizeSettleDelay: resizeSettleDelay,
+      glyphAtlas: glyphAtlas,
+      devicePixelRatio: devicePixelRatio,
       onEditableRect: onEditableRect,
       composingText: composingText,
       foregroundPainter: foregroundPainter,
@@ -633,6 +666,9 @@ class _TerminalView extends LeafRenderObjectWidget {
       ..cursorType = cursorType
       ..alwaysShowCursor = alwaysShowCursor
       ..blinkInterval = blinkInterval
+      ..resizeSettleDelay = resizeSettleDelay
+      ..glyphAtlas = glyphAtlas
+      ..devicePixelRatio = devicePixelRatio
       ..onEditableRect = onEditableRect
       ..composingText = composingText
       ..foregroundPainter = foregroundPainter;

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/terminal_view.dart';
 
@@ -91,7 +91,8 @@ void main() {
       );
       return tester.renderObject<RenderTerminal>(
         find.byWidgetPredicate(
-            (w) => w.runtimeType.toString() == '_TerminalView'),
+          (w) => w.runtimeType.toString() == '_TerminalView',
+        ),
       );
     }
 
@@ -127,15 +128,14 @@ void main() {
       final left = 3 * cell.width;
       expect(
         render,
-        paints
-          ..rect(
-            rect: Rect.fromLTRB(
-              left.floorToDouble(),
-              0,
-              (left + cell.width).ceilToDouble(),
-              cell.height.ceilToDouble(),
-            ),
+        paints..rect(
+          rect: Rect.fromLTRB(
+            left.floorToDouble(),
+            0,
+            (left + cell.width).ceilToDouble(),
+            cell.height.ceilToDouble(),
           ),
+        ),
       );
     });
 

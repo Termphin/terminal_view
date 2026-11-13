@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:terminal_view/terminal_view.dart';
@@ -17,8 +17,9 @@ void main() {
 
   /// Renders whatever [TerminalView] is currently on screen to raw pixels.
   Future<Uint8List> snapshot(WidgetTester tester) async {
-    final boundary = boundaryKey.currentContext!.findRenderObject()!
-        as RenderRepaintBoundary;
+    final boundary =
+        boundaryKey.currentContext!.findRenderObject()!
+            as RenderRepaintBoundary;
 
     final image = await tester.runAsync(() => boundary.toImage());
     final data = await tester.runAsync(
@@ -42,8 +43,9 @@ void main() {
     );
   }
 
-  testWidgets('a line renders the same once it is served from the cache',
-      (tester) async {
+  testWidgets('a line renders the same once it is served from the cache', (
+    tester,
+  ) async {
     final terminal = Terminal();
     await pumpTerminal(tester, terminal);
 
@@ -91,8 +93,9 @@ void main() {
     expect(await snapshot(tester), equals(afterEdit));
   });
 
-  testWidgets('BufferLine.version tracks every kind of cell change',
-      (tester) async {
+  testWidgets('BufferLine.version tracks every kind of cell change', (
+    tester,
+  ) async {
     final terminal = Terminal();
     await pumpTerminal(tester, terminal);
 
@@ -113,16 +116,10 @@ void main() {
     expectBumped('setBackground', () => line.setBackground(0, 1));
     expectBumped('setAttributes', () => line.setAttributes(0, 1));
     expectBumped('setCodePoint', () => line.setCodePoint(1, 0x42));
-    expectBumped(
-      'setCell',
-      () => line.setCell(2, 0x43, 1, CursorStyle.empty),
-    );
+    expectBumped('setCell', () => line.setCell(2, 0x43, 1, CursorStyle.empty));
     expectBumped('eraseCell', () => line.eraseCell(2, CursorStyle.empty));
     expectBumped('resetCell', () => line.resetCell(2));
-    expectBumped(
-      'eraseRange',
-      () => line.eraseRange(0, 3, CursorStyle.empty),
-    );
+    expectBumped('eraseRange', () => line.eraseRange(0, 3, CursorStyle.empty));
     expectBumped('insertCells', () => line.insertCells(0, 2));
     expectBumped('removeCells', () => line.removeCells(0, 2));
     expectBumped('resize', () => line.resize(line.length + 1));
