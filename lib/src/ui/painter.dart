@@ -2,6 +2,7 @@ import 'dart:typed_data';
 import 'dart:ui';
 import 'package:flutter/painting.dart';
 
+import 'package:terminal_view/src/ui/glyph_atlas.dart';
 import 'package:terminal_view/src/ui/palette_builder.dart';
 import 'package:terminal_view/src/ui/paragraph_cache.dart';
 import 'package:terminal_view/src/utils/hash_values.dart';
@@ -51,6 +52,42 @@ class TerminalPainter {
   /// viewport plus the lines either side that a scroll drags past.
   final _lineCache = _LinePictureCache(192);
 
+  /// Whether printable ASCII is stamped from a [GlyphAtlas] instead of laid
+  /// out as paragraphs. Everything else - wide characters, symbols, anything
+  /// struck through - is drawn as it always was.
+  bool get glyphAtlas => _glyphAtlas;
+  bool _glyphAtlas = false;
+  set glyphAtlas(bool value) {
+    if (value == _glyphAtlas) return;
+    _glyphAtlas = value;
+    _dropAtlas();
+    _lineCache.clear();
+  }
+
+  /// Device pixels to a logical one, which the atlas is drawn at.
+  double get devicePixelRatio => _devicePixelRatio;
+  double _devicePixelRatio = 1;
+  set devicePixelRatio(double value) {
+    if (value <= 0 || value == _devicePixelRatio) return;
+    _devicePixelRatio = value;
+    _dropAtlas();
+    _lineCache.clear();
+  }
+
+  GlyphAtlas? _atlas;
+
+  final _batches = List.generate(GlyphAtlas.styleCount, (_) => GlyphBatch());
+
+  /// Stamps are copies of pixels drawn for this very size, so nothing is to
+  /// be gained by filtering them, and at a fractional position filtering
+  /// would only soften them.
+  final _atlasPaint = Paint()..filterQuality = FilterQuality.none;
+
+  void _dropAtlas() {
+    _atlas?.dispose();
+    _atlas = null;
+  }
+
   TerminalStyle get textStyle => _textStyle;
   TerminalStyle _textStyle;
   set textStyle(TerminalStyle value) {
@@ -59,6 +96,7 @@ class TerminalPainter {
     _cellSize = _measureCharSize();
     _paragraphCache.clear();
     _lineCache.clear();
+    _dropAtlas();
   }
 
   TextScaler get textScaler => _textScaler;
@@ -69,6 +107,7 @@ class TerminalPainter {
     _cellSize = _measureCharSize();
     _paragraphCache.clear();
     _lineCache.clear();
+    _dropAtlas();
   }
 
   TerminalTheme get theme => _theme;
@@ -117,6 +156,7 @@ class TerminalPainter {
     _cellSize = _measureCharSize();
     _paragraphCache.clear();
     _lineCache.clear();
+    _dropAtlas();
   }
 
   /// Paints the cursor based on the current cursor type.
@@ -179,15 +219,15 @@ class TerminalPainter {
     Offset offset,
     BufferLine line,
   ) {
-    if (_lineHasBlink(line)) {
-      _paintLineDirect(canvas, offset, line);
-      return;
-    }
-
     final version = line.version;
     final entry = _lineCache.get(line);
 
     if (entry != null && entry.version == version) {
+      if (entry.hasBlink) {
+        _paintLineDirect(canvas, offset, line);
+        return;
+      }
+
       var picture = entry.picture;
 
       if (picture == null) {
@@ -207,7 +247,7 @@ class TerminalPainter {
       return;
     }
 
-    _lineCache.put(line, version);
+    _lineCache.put(line, version, hasBlink: _lineHasBlink(line));
     _paintLineDirect(canvas, offset, line);
   }
 
@@ -334,6 +374,20 @@ class TerminalPainter {
           j++;
         }
 
+        if (_glyphAtlas && flags & CellFlags.strikethrough == 0) {
+          _stampRun(
+            offset,
+            i,
+            buffer,
+            runLength,
+            foreground: foreground,
+            background: background,
+            flags: flags,
+          );
+          i = j;
+          continue;
+        }
+
         _paintRun(
           canvas,
           offset.translate(i * cellWidth, 0),
@@ -363,6 +417,76 @@ class TerminalPainter {
         combined: line.getCombined(i),
       );
       i += step;
+    }
+
+    if (_glyphAtlas) _flushStamps(canvas);
+  }
+
+  /// Gathers the glyphs of a run of ASCII starting at [column] of the line
+  /// at [offset], to be drawn by [_flushStamps].
+  ///
+  /// Each glyph lands on the device pixel nearest its cell, counted from the
+  /// line's own corner so a line is stamped the same whether it is drawn
+  /// where it stands or recorded and replayed there.
+  void _stampRun(
+    Offset offset,
+    int column,
+    Uint32List codePoints,
+    int length, {
+    required int foreground,
+    required int background,
+    required int flags,
+  }) {
+    final invisible = flags & CellFlags.invisible != 0;
+    final blinkHidden = flags & CellFlags.blink != 0 && !blinkVisible;
+    if (invisible || blinkHidden) return;
+
+    final atlas = _atlas ??= GlyphAtlas(
+      textStyle: _textStyle,
+      textScaler: _textScaler,
+      cellSize: _cellSize,
+      devicePixelRatio: _devicePixelRatio,
+    );
+    final bold = flags & CellFlags.bold != 0;
+    final batch = _batches[GlyphAtlas.styleOf(
+      bold: bold,
+      italic: flags & CellFlags.italic != 0,
+    )];
+    final color = _resolveRunColor(
+      overrideColor: null,
+      foreground: foreground,
+      background: background,
+      flags: flags,
+      bold: bold,
+    ).toARGB32();
+
+    final ratio = _devicePixelRatio;
+    final scale = 1 / ratio;
+    final cellWidth = _cellSize.width * ratio;
+    final left = offset.dx - atlas.originX;
+    final top = offset.dy - atlas.originY;
+
+    for (var k = 0; k < length; k++) {
+      final codePoint = codePoints[k];
+      if (!GlyphAtlas.holds(codePoint)) continue;
+      batch.add(
+        atlas,
+        codePoint,
+        left + ((column + k) * cellWidth).roundToDouble() * scale,
+        top,
+        scale,
+        color,
+      );
+    }
+  }
+
+  void _flushStamps(Canvas canvas) {
+    final atlas = _atlas;
+    if (atlas == null) return;
+    for (var style = 0; style < GlyphAtlas.styleCount; style++) {
+      final batch = _batches[style];
+      if (batch.isEmpty) continue;
+      batch.flush(canvas, atlas.page(style), _atlasPaint);
     }
   }
 
@@ -516,8 +640,8 @@ class TerminalPainter {
   /// pages, `ls` colours, hyperlinks - says the same thing with colour too.
   TextDecoration _decorationFor(int flags) =>
       flags & CellFlags.strikethrough != 0
-      ? TextDecoration.lineThrough
-      : TextDecoration.none;
+          ? TextDecoration.lineThrough
+          : TextDecoration.none;
 
   double _contrastRatio(Color a, Color b) {
     final la = a.computeLuminance();
@@ -661,6 +785,7 @@ class TerminalPainter {
   void dispose() {
     _paragraphCache.clear();
     _lineCache.clear();
+    _dropAtlas();
   }
 
   /// Get the effective foreground color for a cell from information encoded in
@@ -715,6 +840,11 @@ class _CachedLine {
   /// The [BufferLine.version] this entry was made for.
   int version;
 
+  /// Whether a cell of the line blinks, which keeps it out of the recording:
+  /// it is drawn differently from one tick to the next. Worked out once per
+  /// version rather than by scanning every cell of every row on every frame.
+  bool hasBlink = false;
+
   /// Null until the line has held still long enough to be worth recording.
   Picture? picture;
 }
@@ -746,17 +876,18 @@ class _LinePictureCache {
     return null;
   }
 
-  void put(BufferLine line, int version) {
+  void put(BufferLine line, int version, {bool hasBlink = false}) {
     final existing = _hot[line];
     if (existing != null) {
       existing.picture?.dispose();
       existing.picture = null;
       existing.version = version;
+      existing.hasBlink = hasBlink;
       return;
     }
 
     if (_hot.length >= maximumSize) _rotate();
-    _hot[line] = _CachedLine(version);
+    _hot[line] = _CachedLine(version)..hasBlink = hasBlink;
   }
 
   void _rotate() {

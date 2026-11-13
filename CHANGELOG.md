@@ -1,3 +1,9 @@
+## [0.6.0] - 2026-11-13
+
+* Add `TerminalView.glyphAtlas`: printable ASCII is drawn from an image of the font's glyphs, one draw a line, instead of a paragraph per run. Off by default.
+* Add `TerminalView.resizeSettleDelay`: the terminal is resized once the view's height has come to rest, not on every frame of a keyboard animation.
+* Cheaper frames: the cursor blink timer is no longer recreated on every change, and scrolling and selection repaint instead of laying out.
+
 ## [0.5.0] - 2026-10-14
 
 * Scroll the view while a long press or mouse drag selection is held near the top or bottom edge; the start of the selection stays on its text.

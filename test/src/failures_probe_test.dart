@@ -180,7 +180,8 @@ void main() {
       expect(t.buffer.lines[t.buffer.scrollBack].toString(), '');
     });
 
-    test('C0 controls inside an unfinished CSI stay ignored (parser design)', () {
+    test('C0 controls inside an unfinished CSI stay ignored (parser design)',
+        () {
       // xterm executes C0 in place; terminal_view rolls back incomplete
       // sequences, so executing them would replay the control on every
       // subsequent write. Asserting the current contract: no corruption.
