@@ -1,3 +1,7 @@
+## [0.6.1] - 2026-11-14
+
+* A screen that gets shorter - a keyboard opening - no longer drops the lines under the cursor. Only blank lines go from its bottom; a line with something on it stays and the screen moves down over it, so it is all there again when the screen grows back. Dropping them lost text for good, and a program that redraws itself after a resize, such as Claude Code, then erased the wrong lines.
+
 ## [0.6.0] - 2026-11-13
 
 * Add `TerminalView.glyphAtlas`: printable ASCII is drawn from an image of the font's glyphs, one draw a line, instead of a paragraph per run. Off by default.

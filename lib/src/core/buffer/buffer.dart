@@ -584,6 +584,15 @@ class Buffer {
     }
   }
 
+  /// Resizes the screen to [newWidth] by [newHeight].
+  ///
+  /// A screen that gets shorter drops only blank lines from its bottom. A
+  /// line with something on it, below a cursor that sits higher up - an
+  /// interactive program's input box with its status line under it - stays,
+  /// and the screen moves down over it instead, pushing its top into the
+  /// scrollback; growing back brings that top out again. Dropping such lines
+  /// lost them for good, and a program redrawing itself after the resize,
+  /// counting on them, then erased the wrong ones.
   void resize(int oldWidth, int oldHeight, int newWidth, int newHeight) {
     // 1. Adjust the height.
     if (newHeight > oldHeight) {
@@ -596,12 +605,15 @@ class Buffer {
         }
       }
     } else {
-      // Shrink smaller
       for (var i = 0; i < oldHeight - newHeight; i++) {
+        final bottomBlank =
+            lines.length > 0 && lines[lines.length - 1].getTrimmedLength() == 0;
         if (_cursorY > newHeight - 1) {
           _cursorY--;
-        } else {
+        } else if (bottomBlank || _cursorY == 0) {
           lines.pop();
+        } else {
+          _cursorY--;
         }
       }
     }
