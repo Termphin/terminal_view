@@ -39,6 +39,8 @@ class TerminalView extends StatefulWidget {
     this.onTapUp,
     this.onSecondaryTapDown,
     this.onSecondaryTapUp,
+    this.onTertiaryTapDown,
+    this.onTertiaryTapUp,
     this.mouseCursor = SystemMouseCursors.text,
     this.keyboardType = TextInputType.emailAddress,
     this.keyboardAppearance = Brightness.dark,
@@ -101,6 +103,13 @@ class TerminalView extends StatefulWidget {
 
   /// Function called when the user stops holding down a secondary button.
   final void Function(TapUpDetails, CellOffset)? onSecondaryTapUp;
+
+  /// Function called when the user presses the middle button, unless a
+  /// program with mouse reporting on takes the click.
+  final void Function(TapDownDetails, CellOffset)? onTertiaryTapDown;
+
+  /// Function called when the user lets go of the middle button.
+  final void Function(TapUpDetails, CellOffset)? onTertiaryTapUp;
 
   /// The mouse cursor for mouse pointers that are hovering over the terminal.
   /// [SystemMouseCursors.text] by default.
@@ -376,6 +385,8 @@ class TerminalViewState extends State<TerminalView> {
       onSecondaryTapUp: widget.onSecondaryTapUp != null
           ? _onSecondaryTapUp
           : null,
+      onTertiaryTapDown: _onTertiaryTapDown,
+      onTertiaryTapUp: _onTertiaryTapUp,
       readOnly: widget.readOnly,
       child: child,
     );
@@ -445,6 +456,16 @@ class TerminalViewState extends State<TerminalView> {
   void _onSecondaryTapUp(TapUpDetails details) {
     final offset = renderTerminal.getCellOffset(details.localPosition);
     widget.onSecondaryTapUp?.call(details, offset);
+  }
+
+  void _onTertiaryTapDown(TapDownDetails details) {
+    final offset = renderTerminal.getCellOffset(details.localPosition);
+    widget.onTertiaryTapDown?.call(details, offset);
+  }
+
+  void _onTertiaryTapUp(TapUpDetails details) {
+    final offset = renderTerminal.getCellOffset(details.localPosition);
+    widget.onTertiaryTapUp?.call(details, offset);
   }
 
   bool get hasInputConnection {
