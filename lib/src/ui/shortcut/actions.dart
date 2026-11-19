@@ -2,7 +2,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:terminal_view/src/terminal.dart';
 import 'package:terminal_view/src/ui/controller.dart';
-import 'package:terminal_view/src/ui/selection_mode.dart';
 
 class TerminalActions extends StatelessWidget {
   const TerminalActions({
@@ -50,17 +49,7 @@ class TerminalActions extends StatelessWidget {
         ),
         SelectAllTextIntent: CallbackAction<SelectAllTextIntent>(
           onInvoke: (intent) {
-            controller.setSelection(
-              terminal.buffer.createAnchor(
-                0,
-                terminal.buffer.height - terminal.viewHeight,
-              ),
-              terminal.buffer.createAnchor(
-                terminal.viewWidth,
-                terminal.buffer.height - 1,
-              ),
-              mode: SelectionMode.line,
-            );
+            controller.selectAll(terminal.buffer);
             return null;
           },
         ),

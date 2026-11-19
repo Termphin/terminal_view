@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 import 'package:meta/meta.dart';
 import 'package:terminal_view/src/base/disposable.dart';
+import 'package:terminal_view/src/core/buffer/buffer.dart';
 import 'package:terminal_view/src/core/buffer/cell_offset.dart';
 import 'package:terminal_view/src/core/buffer/line.dart';
 import 'package:terminal_view/src/core/buffer/range.dart';
@@ -63,6 +64,21 @@ class TerminalController with ChangeNotifier {
     }
 
     notifyListeners();
+  }
+
+  /// Selects everything [buffer] holds, the scrollback included, up to the
+  /// end of the last line with text on it - not the empty rows of the screen
+  /// below it, which a copy would otherwise carry along as blank lines.
+  void selectAll(Buffer buffer) {
+    var last = buffer.height - 1;
+    while (last > 0 && buffer.lines[last].getTrimmedLength() == 0) {
+      last--;
+    }
+    setSelection(
+      buffer.createAnchor(0, 0),
+      buffer.createAnchor(buffer.lines[last].getTrimmedLength(), last),
+      mode: SelectionMode.line,
+    );
   }
 
   BufferRange _createRange(CellOffset begin, CellOffset end) {
