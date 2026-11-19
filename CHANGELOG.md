@@ -1,3 +1,9 @@
+## [0.6.2] - 2026-11-19
+
+* Fix fast typing sending earlier characters twice when keystrokes arrive before the platform applies the asynchronous editing-state reset.
+* Treat the middle mouse button as a middle click instead of a right click (`TerminalMouseButton.middle`), and add `TerminalView.onTertiaryTapDown` and `TerminalView.onTertiaryTapUp`.
+* Add `TerminalController.selectAll` (and use it in the select-all shortcut action) to select from the start of the scrollback to the end of the last non-empty line instead of including trailing blank rows.
+
 ## [0.6.1] - 2026-11-14
 
 * A screen that gets shorter - a keyboard opening - no longer drops the lines under the cursor. Only blank lines go from its bottom; a line with something on it stays and the screen moves down over it, so it is all there again when the screen grows back. Dropping them lost text for good, and a program that redraws itself after a resize, such as Claude Code, then erased the wrong lines.
