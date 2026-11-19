@@ -219,22 +219,38 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
 
     widget.onComposing(null);
 
-    if (_currentEditingState.text.length < _initEditingState.text.length) {
+    final text = _currentEditingState.text;
+    final sent = _sentText;
+    if (sent != null && text.length > sent.length && text.startsWith(sent)) {
+      widget.onInsert(text.substring(sent.length));
+    } else if (text.length < _initEditingState.text.length) {
       widget.onDelete();
     } else {
-      final textDelta = _currentEditingState.text.substring(
-        _initEditingState.text.length,
-      );
+      final textDelta = text.substring(_initEditingState.text.length);
 
       widget.onInsert(textDelta);
     }
 
     // Reset editing state if composing is done
     if (_currentEditingState.composing.isCollapsed &&
-        _currentEditingState.text != _initEditingState.text) {
+        text != _initEditingState.text) {
+      _sentText = text;
       _connection!.setEditingState(_initEditingState);
+    } else {
+      _sentText = null;
     }
   }
+
+  /// The text of the last update whose input was sent, while the reset that
+  /// followed it may not have reached the platform yet.
+  ///
+  /// The reset is asynchronous: a key typed before the platform applies it
+  /// arrives on top of the old text, and diffing that against the reset
+  /// state would send the earlier keys again. An update that extends this
+  /// text therefore only sends what it adds. One that does not - the same
+  /// text again, or anything else - came after the reset landed, since the
+  /// platform reports a change only when the text changed.
+  String? _sentText;
 
   @override
   void performAction(TextInputAction action) {
