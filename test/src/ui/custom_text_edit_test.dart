@@ -92,4 +92,52 @@ void main() {
 
     expect(output.join(), 'xyz');
   });
+
+  testWidgets(
+    'does not insert a space when the reset state echoes after a delete',
+    (tester) async {
+      final output = await focusedTerminal(tester, deleteDetection: true);
+
+      engineSends('  a');
+      engineSends('  ');
+      engineSends('  b');
+      engineSends('  ');
+      engineSends(' ');
+      engineSends('  ');
+      engineSends(' ');
+      engineSends('  ');
+      engineSends(' ');
+      engineSends('  ');
+      engineSends('  c');
+      await binding.idle();
+
+      expect(output, ['a', 'b', '\x7f', '\x7f', '\x7f', 'c']);
+    },
+  );
+
+  testWidgets(
+    'does not prepend a space to the next insert after a delete without reset echo',
+    (tester) async {
+      final output = await focusedTerminal(tester, deleteDetection: true);
+
+      engineSends('  a');
+      engineSends(' ');
+      engineSends('  c');
+      await binding.idle();
+
+      expect(output, ['a', '\x7f', 'c']);
+    },
+  );
+
+  testWidgets('handles rapid deletes before the reset lands', (tester) async {
+    final output = await focusedTerminal(tester, deleteDetection: true);
+
+    engineSends(' ');
+    engineSends('');
+    engineSends('  ');
+    engineSends('  x');
+    await binding.idle();
+
+    expect(output, ['\x7f', '\x7f', 'x']);
+  });
 }

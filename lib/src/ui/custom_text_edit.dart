@@ -112,6 +112,7 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   }
 
   void setEditingState(TextEditingValue value) {
+    _sentText = null;
     _currentEditingState = value;
     _connection?.setEditingState(value);
   }
@@ -181,6 +182,7 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
       _connection!.close();
       _connection = null;
     }
+    _sentText = null;
   }
 
   TextEditingValue get _initEditingState => widget.deleteDetection
@@ -220,28 +222,34 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
     widget.onComposing(null);
 
     final text = _currentEditingState.text;
+    final initText = _initEditingState.text;
+    if (text == initText) {
+      _sentText = null;
+      return;
+    }
+
     final sent = _sentText;
     if (sent != null && text.length > sent.length && text.startsWith(sent)) {
       widget.onInsert(text.substring(sent.length));
-    } else if (text.length < _initEditingState.text.length) {
+    } else if (text.length < initText.length) {
       widget.onDelete();
     } else {
-      final textDelta = text.substring(_initEditingState.text.length);
-
-      widget.onInsert(textDelta);
+      final textDelta = text.substring(initText.length);
+      if (textDelta.isNotEmpty) {
+        widget.onInsert(textDelta);
+      }
     }
 
     // Reset editing state if composing is done
-    if (_currentEditingState.composing.isCollapsed &&
-        text != _initEditingState.text) {
-      _sentText = text;
+    if (_currentEditingState.composing.isCollapsed) {
+      _sentText = text.length > initText.length ? text : null;
       _connection!.setEditingState(_initEditingState);
     } else {
       _sentText = null;
     }
   }
 
-  /// The text of the last update whose input was sent, while the reset that
+  /// The text of the last insert whose input was sent, while the reset that
   /// followed it may not have reached the platform yet.
   ///
   /// The reset is asynchronous: a key typed before the platform applies it
@@ -250,6 +258,12 @@ class CustomTextEditState extends State<CustomTextEdit> with TextInputClient {
   /// text therefore only sends what it adds. One that does not - the same
   /// text again, or anything else - came after the reset landed, since the
   /// platform reports a change only when the text changed.
+  ///
+  /// Only set when the text is longer than [_initEditingState] (an insert),
+  /// never after a delete: with delete detection enabled, a delete shortens
+  /// the buffer to a prefix of [_initEditingState], so keeping it here would
+  /// treat both the echoed reset state and the next insert as extending it
+  /// with a stray space.
   String? _sentText;
 
   @override
