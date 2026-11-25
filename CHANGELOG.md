@@ -1,3 +1,7 @@
+## [0.6.3] - 2026-11-25
+
+* Fix delete detection inserting a stray space after Backspace on platforms that echo the reset editing state (such as iOS) or prepending a space to the next typed character, by ignoring echoed reset states and clearing the pending insert prefix after deletes.
+
 ## [0.6.2] - 2026-11-19
 
 * Fix fast typing sending earlier characters twice when keystrokes arrive before the platform applies the asynchronous editing-state reset.
