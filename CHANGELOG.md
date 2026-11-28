@@ -1,3 +1,7 @@
+## [0.6.4] - 2026-11-28
+
+* Fix typing on Windows desktop: the text input connection now names the view it belongs to (`TextInputConfiguration.viewId`), without which the Windows embedder never attaches the client and no typed text reaches the terminal.
+
 ## [0.6.3] - 2026-11-25
 
 * Fix delete detection inserting a stray space after Backspace on platforms that echo the reset editing state (such as iOS) or prepending a space to the next typed character, by ignoring echoed reset states and clearing the pending insert prefix after deletes.
